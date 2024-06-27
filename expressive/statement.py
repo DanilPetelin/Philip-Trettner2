@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
 """
 This module exports a set of statement replacement functions.
 
@@ -56,9 +58,6 @@ alternative now that most statements are available as expressions.
 Multiple sequential expressions are available in lambda via progn.
 Multiple exits are available via let/progn/Return()
 """
-
-
-__author__ = 'Matthew Egan Odendahl'
 
 
 def _private():
