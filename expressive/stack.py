@@ -1,3 +1,4 @@
+from functools import lru_cache
 from expressive.core import Tuple
 from collections import deque, Mapping
 
@@ -6,7 +7,7 @@ class Stack:
     def __init__(self, *args, rest=None):
         self.head = rest
         for w in args:
-            if hasattr(w, '__stack_word__'):
+            if hasattr(w, '__verb__'):
                 self.head = w(self).head
             else:
                 self.head = (self.head, w)
@@ -104,29 +105,27 @@ class Stack:
         return res
 
 
-def stack_word(func):
-    if hasattr(func, '__doc__') and func.__doc__ is not None:
-        func.__doc__ = 'stack word: '+func.__doc__
-    func.__stack_word__ = None
+def verb(func):
+    func.__verb__ = None
     return func
 
 
-@stack_word
-def py_call(stack):
+@verb
+def do(stack):
     """
     calls an ordinary Python function using the stack.
     (The print function returns None)
-    >>> Stack((1,2,3),print,py_call)
+    >>> Stack((1,2,3),print,do)
     1 2 3
     Stack(None,)
 
     Keywords are also supported with a dictionary
-    >>> Stack((1,2,3),dict(sep=':'),print,py_call)
+    >>> Stack((1,2,3),dict(sep=':'),print,do)
     1:2:3
     Stack(None,)
 
     Use an empty tuple for no arguments
-    >>> Stack((),dict,py_call)
+    >>> Stack((),dict,do)
     Stack({},)
     """
     stack, kwargs, func = stack.pop(2)
@@ -136,7 +135,14 @@ def py_call(stack):
     return stack.push(func(*kwargs))  # kwargs was just args
 
 
-@stack_word
+def define(*args):
+    @verb
+    def phrase(stack):
+        return stack.push(*args)
+    return phrase
+
+
+@verb
 def wrap(stack):
     stack, depth = stack.pop()
     stack, *args = stack.pop(depth)
@@ -162,7 +168,8 @@ def op(func, depth=2):
     >>> Stack(1,2,3,op(Tuple))
     Stack(1, (2, 3))
     """
-    @stack_word
+    @lru_cache  # memoize
+    @verb
     def op_word(stack):
         stack, *args = stack.pop(depth)
         return stack.push(func(*args))
@@ -170,15 +177,80 @@ def op(func, depth=2):
 
 
 def op1(func):
-    @stack_word
-    def unary_operator(stack):
-        stack, x = stack.pop()
-        return stack.push(func(x))
+    return op(func, 1)
 
 
-@stack_word
+nop = define()
+
+
+@verb
+def dip(stack):
+    stack, x, p = stack.pop(2)
+    return stack.push(*p).push(x)
+
+
+@verb
 def dup(stack):
     return stack.push(stack.peek())
 
 
+@verb
+def ba(stack):
+    stack, a, b = stack.pop(2)
+    return stack.push(b, a)
+
+
+bac = define((ba,), dip)
+
+
+@verb
+def cab(stack):
+    stack, a, b, c = stack.pop(3)
+    return stack.push(c, a, b)
+
+
+@verb
+def bca(stack):
+    stack, a, b, c = stack.pop(3)
+    return stack.push(b, c, a)
+
+
+@verb
+def cba(stack):
+    stack, a, b, c = stack.pop(3)
+    return stack.push(c, b, a)
+
+
+@verb
+def pop(stack):
+    stack, a = stack.pop()
+    return stack
+
+
+popd = define((pop,), dip)
+dupd = define((dup,), dip)
+cabd = define((cab,), dip)
+bcad = define((bca,), dip)
+cbad = define((cba,), dip)
+
+
+@verb
+def choice(stack):
+    stack, b, t, f = stack.pop(3)
+    return stack.push(t if b else f)
+
+
+@verb
+def use(stack):
+    stack, p = stack.pop()
+    return stack.push(*p)
+
+
+@verb
+def hatch(stack):
+    p = stack.peek()
+    return stack.push(*p)
+
+
 if __name__ == "__main__": import doctest; doctest.testmod()
+
