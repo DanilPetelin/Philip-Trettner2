@@ -22,7 +22,7 @@ these substitutes can be composed, curried, returned, and passed as
 arguments, unlike the statements they emulate, which must stand alone.
 
 Despite convention for Python function names, the functions Assert,
-Break, Continue, Elif/Else, For/Else, Import/From, Pass, Raise,
+Break, Continue, Elif/Else, For/Else, Import/From, Pass, Raise/From,
 Try/Except/Else/Finally, With, and While/Else are capitalized to avoid
 conflicts with the original Python keywords.
 
@@ -382,7 +382,7 @@ del _private
 
 
 # noinspection PyPep8Naming
-def Raise(ex):
+def Raise(ex, From=None):
     """
     raises an exception.
     Unlike a naked raise statement, this works anywhere
@@ -391,6 +391,8 @@ def Raise(ex):
     >>> list(i if i<10 else Raise(StopIteration) for i in count())
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     """
+    if From:
+        raise ex from From
     raise ex
 
 # TODO: doctest Try
