@@ -259,7 +259,7 @@ def Elif(*thunks, Else=Pass):
     ...      Pass, lambda:print('b'))
     >>> Elif(lambda:True, lambda:print('a'),
     ...      Pass, lambda:print('b'))
-    'a'
+    a
     >>> Elif(Pass, lambda:1,
     ...      lambda:print('a'), lambda:2,  # head has to be checked.
     ...      Pass, lambda:3,
@@ -270,6 +270,7 @@ def Elif(*thunks, Else=Pass):
     ...      lambda:3, lambda:4,  # nonzero is truthy
     ...      lambda:print('skipped?'), lambda:print('skipped?'),
     ...      Else=lambda:print('skipped?'))
+    a
     4
 
     Recall that `if` is already an expression. These can be nested,
