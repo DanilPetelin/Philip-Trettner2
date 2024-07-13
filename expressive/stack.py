@@ -104,11 +104,82 @@ class Stack:
             stack, res = self.pop()
         return res
 
+# ###
+# verb creation functions
+# ###
 
 def verb(func):
+    """Marks func as a verb. Verbs act on nouns in a Stack."""
     func.__verb__ = None
     return func
 
+
+def op(func, depth=2):
+    """
+    converts a binary Python function into a verb
+    >>> from operator import add, mul
+    >>> Stack(2, 3, op(add))
+    Stack(5,)
+    >>> Stack(2, 3, op(mul)).peek()
+    6
+    >>> Stack(4, 2, 3, op(add), op(mul)).peek()
+    20
+
+    you can specify a different arity
+    >>> Stack(1,2,3,4,5,op(Tuple,4))
+    Stack(1, (2, 3, 4, 5))
+
+    but the default assumption is two arguments
+    >>> Stack(1,2,3,op(Tuple))
+    Stack(1, (2, 3))
+    """
+    @lru_cache  # memoize
+    @verb
+    def op_verb(stack):
+        stack, *args = stack.pop(depth)
+        return stack.push(func(*args))
+    return op_verb
+
+
+def op1(func):
+    """ short for op(func,1). Unary Python function to verb"""
+    return op(func, 1)
+
+
+def define(*args):
+    """ Creates a new verb that pushes the given arguments on the stack. """
+    @verb
+    def phrase(stack):
+        return stack.push(*args)
+    return phrase
+
+
+# ##
+# Misc. verbs
+# ##
+
+
+@verb
+def nop(stack):
+    return stack
+
+
+@verb
+def wrap(stack):
+    stack, depth = stack.pop()
+    stack, *args = stack.pop(depth)
+    return stack, args
+
+
+@verb
+def choice(stack):
+    stack, b, t, f = stack.pop(3)
+    return stack.push(t if b else f)
+
+
+# ##
+# Combinators
+# ##
 
 @verb
 def do(stack):
@@ -135,53 +206,6 @@ def do(stack):
     return stack.push(func(*kwargs))  # kwargs was just args
 
 
-def define(*args):
-    @verb
-    def phrase(stack):
-        return stack.push(*args)
-    return phrase
-
-
-@verb
-def wrap(stack):
-    stack, depth = stack.pop()
-    stack, *args = stack.pop(depth)
-    return stack, args
-
-
-def op(func, depth=2):
-    """
-    converts a binary Python function into a stack word
-    >>> from operator import add, mul
-    >>> Stack(2, 3, op(add))
-    Stack(5,)
-    >>> Stack(2, 3, op(mul)).peek()
-    6
-    >>> Stack(4, 2, 3, op(add), op(mul)).peek()
-    20
-
-    you can specify a different arity
-    >>> Stack(1,2,3,4,5,op(Tuple,4))
-    Stack(1, (2, 3, 4, 5))
-
-    but the default assumption is two arguments
-    >>> Stack(1,2,3,op(Tuple))
-    Stack(1, (2, 3))
-    """
-    @lru_cache  # memoize
-    @verb
-    def op_word(stack):
-        stack, *args = stack.pop(depth)
-        return stack.push(func(*args))
-    return op_word
-
-
-def op1(func):
-    return op(func, 1)
-
-
-nop = define()
-
 
 @verb
 def dip(stack):
@@ -190,17 +214,49 @@ def dip(stack):
 
 
 @verb
+def use(stack):
+    stack, p = stack.pop()
+    return stack.push(*p)
+
+
+@verb
+def hatch(stack):
+    p = stack.peek()
+    return stack.push(*p)
+
+
+@verb
+def ifte(stack):
+    stack, b, t, e = stack.pop(3)
+    return stack.push(*(t if Stack(*b).peek() else e))
+
+
+# ##
+# Stack manipulation verbs
+# ##
+
+
+@verb
+def pop(stack):
+    stack, a = stack.pop()
+    return stack
+
+
+@verb
 def dup(stack):
     return stack.push(stack.peek())
 
 
 @verb
-def ba(stack):
+def swap(stack):
     stack, a, b = stack.pop(2)
     return stack.push(b, a)
 
 
-bac = define((ba,), dip)
+@verb
+def bac(stack):
+    stack, a, b, c = stack.pop(3)
+    return stack.push(b, a, c)
 
 
 @verb
@@ -221,35 +277,11 @@ def cba(stack):
     return stack.push(c, b, a)
 
 
-@verb
-def pop(stack):
-    stack, a = stack.pop()
-    return stack
-
-
 popd = define((pop,), dip)
 dupd = define((dup,), dip)
 cabd = define((cab,), dip)
 bcad = define((bca,), dip)
 cbad = define((cba,), dip)
-
-
-@verb
-def choice(stack):
-    stack, b, t, f = stack.pop(3)
-    return stack.push(t if b else f)
-
-
-@verb
-def use(stack):
-    stack, p = stack.pop()
-    return stack.push(*p)
-
-
-@verb
-def hatch(stack):
-    p = stack.peek()
-    return stack.push(*p)
 
 
 if __name__ == "__main__": import doctest; doctest.testmod()
