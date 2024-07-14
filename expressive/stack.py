@@ -1,6 +1,9 @@
 from functools import lru_cache
+from itertools import permutations
 from expressive.core import Tuple
 from collections import deque, Mapping
+from expressive.sexpression import S, SymbolType
+from macros import DOT
 
 
 class Stack:
@@ -155,7 +158,111 @@ def define(*args):
 
 
 # ##
-# Misc. verbs
+# Stack manipulation verbs
+# ##
+
+
+@verb
+def pop(stack):
+    stack, a = stack.pop()
+    return stack
+
+
+@verb
+def dup(stack):
+    return stack.push(stack.peek())
+
+
+@verb
+def swap(stack):
+    stack, a, b = stack.pop(2)
+    return stack.push(b, a)
+
+# abc is Ic
+# acb is swap
+
+@verb
+def bac(stack):
+    stack, a, b, c = stack.pop(3)
+    return stack.push(b, a, c)
+
+
+@verb
+def bca(stack):
+    stack, a, b, c = stack.pop(3)
+    return stack.push(b, c, a)
+
+
+@verb
+def cab(stack):
+    stack, a, b, c = stack.pop(3)
+    return stack.push(c, a, b)
+
+
+@verb
+def cba(stack):
+    stack, a, b, c = stack.pop(3)
+    return stack.push(c, b, a)
+
+
+@verb
+def bacd(stack):
+    stack, a, b, c, d = stack.pop(4)
+    return stack.push(b, a, c, d)
+
+
+def _private():
+    for cs in list(map(permutations('abcd')))[6:]:
+        def anonymous(stack, cs=cs):
+            stack, *args = stack.pop(4)
+            return stack.push(*(args[ord(cs[i])-ord('a')] for i in range(4)))
+        globals()[''.join(cs)] = anonymous
+_private()
+del _private
+
+
+
+def _private():
+    for cs in list(map(permutations('abcd')))[6:]:
+        def closure(cs=cs):
+            sexp = S(S(DOT, S.stack,
+                            S.push), *(SymbolType(cs[i])
+                                       for i in range(4)))
+
+            def anonymous(stack):
+                stack, a, b, c, d = stack.pop(4)
+                return sexp.eval(locals())
+            anonymous.__name__ = ''.join(cs)
+            return anonymous
+        globals()[''.join(cs)] = closure()
+_private()
+del _private
+
+for cs in list(map(permutations('abcd')))[6:]:
+    exec('''
+    def {0}(stack):
+        """
+        permutes the top four elements of the stack,
+        >>> Stack(..., 'a', 'b', 'c', 'd', {0})
+        Stack(Ellipsis, '{1}', '{2}', '{3}', '{4}')
+        q
+        """
+        stack, a, b, c, d = stack.pop(4)
+        return stack.push({1},{2},{3},{4})
+
+    '''.format(cs, *cs))
+del cs
+
+
+
+
+
+popd = define((pop,), dip)
+dupd = define((dup,), dip)
+
+
+# ##
+# Operator verbs
 # ##
 
 
@@ -206,7 +313,6 @@ def do(stack):
     return stack.push(func(*kwargs))  # kwargs was just args
 
 
-
 @verb
 def dip(stack):
     stack, x, p = stack.pop(2)
@@ -214,15 +320,38 @@ def dip(stack):
 
 
 @verb
-def use(stack):
-    stack, p = stack.pop()
+def Ic(stack):
+    stack, x = stack.pop()
+    return stack.push(*x)
+
+
+@verb
+def Bc(stack):
+    stack, p, q = stack.pop()
+    return stack.push(*p).push(*q)
+
+
+Cc = define([swap], dip, Ic)
+Kc = define([pop], dip, Ic)
+Wc = define([dup], dip, Ic)
+
+
+@verb
+def Xc(stack):
+    p = stack.peek()
     return stack.push(*p)
 
 
 @verb
-def hatch(stack):
-    p = stack.peek()
-    return stack.push(*p)
+def dipd(stack):
+    stack, x, y, p = stack.pop(3)
+    return stack.push(*p).push(x, y)
+
+
+@verb
+def dipdd(stack):
+    stack, x, y, z, p = stack.pop(4)
+    return stack.push(*p).push(x, y, z)
 
 
 @verb
@@ -231,57 +360,14 @@ def ifte(stack):
     return stack.push(*(t if Stack(*b).peek() else e))
 
 
-# ##
-# Stack manipulation verbs
-# ##
-
-
 @verb
-def pop(stack):
-    stack, a = stack.pop()
-    return stack
+def step(stack):
+    stack, it, p = stack.pop(2)
+    for a in it:
+        stack.push(a).push(*p)
 
 
-@verb
-def dup(stack):
-    return stack.push(stack.peek())
 
-
-@verb
-def swap(stack):
-    stack, a, b = stack.pop(2)
-    return stack.push(b, a)
-
-
-@verb
-def bac(stack):
-    stack, a, b, c = stack.pop(3)
-    return stack.push(b, a, c)
-
-
-@verb
-def cab(stack):
-    stack, a, b, c = stack.pop(3)
-    return stack.push(c, a, b)
-
-
-@verb
-def bca(stack):
-    stack, a, b, c = stack.pop(3)
-    return stack.push(b, c, a)
-
-
-@verb
-def cba(stack):
-    stack, a, b, c = stack.pop(3)
-    return stack.push(c, b, a)
-
-
-popd = define((pop,), dip)
-dupd = define((dup,), dip)
-cabd = define((cab,), dip)
-bcad = define((bca,), dip)
-cbad = define((cba,), dip)
 
 
 if __name__ == "__main__": import doctest; doctest.testmod()
