@@ -14,15 +14,16 @@
 
 
 """
-S-expressions and related functions.
+S-expression for Python, with macro support.
 """
 
 
 class SExpression:
     """
-    S-expression for Python, with macros.
+    S-expressions are executable data structures for metaprogramming.
 
     An S object represents a potential function call.
+
     The function isn't actually called until invocation
     of the .eval() method, which will also .eval() any
     nested S objects before applying the function.
@@ -30,28 +31,26 @@ class SExpression:
     >>> spam = S(add,20,4)
     >>> spam
     S(<built-in function add>, *(20, 4))
-    >>> spam.eval()
+    >>> spam.eval()  # same as >>> add(20,4)
     24
     >>> spam = S(add,S(mul,4,10),2)
     >>> spam.eval()
     42
 
     Even the function argument can be a nested S-expression
-    >>> S(S(lambda a,b:a and b,add,mul),2,3).eval()
+    >>> S(S(lambda a,b: a and b, add,mul),2,3).eval()
     6
-    >>> S(S(lambda a,b:a or b,add,mul),2,3).eval()
+    >>> S(S(lambda a,b: a or b, add,mul),2,3).eval()
     5
 
     Keywords also work
     >>> S(print,1,2,3,sep='::').eval()
     1::2::3
 
-    S expressions are executable data structures--both code and data.
     .eval() treats functions with the @macro decorator specially.
     These are given any nested S objects unevaluated, and return a
-    new S object to be evaluated; potentially rewriting custom
-    domain-specific language forms to executable Python code. An
-    if macro is a simple example:
+    new S object to be evaluated; rewriting code before it's
+    executed.
     >>> If = lambda scope,b,t,e=None: t if try_eval(b,scope) else e
     >>> If.__macro__ = None
     >>> S(If, True, S(print,'yes'), S(print,'no')).eval()
@@ -71,16 +70,18 @@ class SExpression:
     an S expression to create the data structure.
 
     This doesn't print 'test'.
-    >>> S(lambda x:x,[S(print,'test')]).eval()
+    >>> identity = lambda x: x
+    >>> S(identity,[S(print,'test')]).eval()
     [S(<built-in function print>, *('test',))]
 
     This does, since it uses another S-expression to make the list.
-    >>> S(lambda x:x,S(lambda *es:list(es),S(print,'test'))).eval()
+    >>> make_list = lambda *xs: list(xs)
+    >>> S(identity,S(make_list,S(print,'test'))).eval()
     test
     [None]
 
     Explicit evaluation also works.
-    >>> S(lambda x:x,[S(print,'test').eval()]).eval()
+    >>> S(identity,[S(print,'test').eval()]).eval()
     test
     [None]
 
@@ -117,6 +118,36 @@ def _private():
 
     # noinspection PyShadowingNames
     class SymbolType(UserString, str):
+        """
+        Symbols for S-expressions.
+
+        A Symbol represents a potential Python identifier.
+        >>> spam = 1
+        >>> nosymbol = S(print,spam)
+        >>> nosymbol  # spam already resolved to 1
+        S(<built-in function print>, *(1,))
+        >>> withsymbol = S(print,S.spam)
+        >>> withsymbol  # S.spam is still a symbol
+        S(<built-in function print>, *(S.spam,))
+        >>> nosymbol.eval()
+        1
+
+        Symbols require a containing scope
+        >>> withsymbol.eval(globals())
+        1
+        >>> spam = 2
+        >>> nosymbol.eval()  # doesn't change
+        1
+        >>> withsymbol.eval(globals())
+        2
+        >>> withsymbol.eval(dict(spam=42))  # value depends on scope
+        42
+
+        Macros get Symbols unevaluated. Unevaluated Symbols work like strings.
+        So macros can also rewrite Symbols
+        >>> S.quux + S.norf
+        S.quuxnorf
+        """
         def __init__(self, name):
             super().__init__(name)
             # self.__name__ = 'SymbolType'
@@ -135,8 +166,9 @@ def _private():
             return 'S.'+self.data
 
         def eval(self, scope=()):
+            """ looks up itself in scope """
             try:
-                return scope[self.data]
+                return scope[self]
             except KeyError as ke:
                 raise SymbolError(
                     'Symbol %s is not bound in the given scope' % repr(self))

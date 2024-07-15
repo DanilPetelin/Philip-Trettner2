@@ -1,12 +1,31 @@
+# Copyright 2015 Matthew Egan Odendahl
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#  http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+Stack-based combinator algebra for Python.
+"""
+
 from functools import lru_cache
 from itertools import permutations
 from expressive.core import Tuple
 from collections import deque, Mapping
-from expressive.sexpression import S, SymbolType
-from macros import DOT
 
 
 class Stack:
+    """
+    Stack is an executable data structure for metaprogramming.
+    """
     def __init__(self, *args, rest=None):
         self.head = rest
         for w in args:
@@ -136,7 +155,7 @@ def op(func, depth=2):
     >>> Stack(1,2,3,op(Tuple))
     Stack(1, (2, 3))
     """
-    @lru_cache  # memoize
+    @lru_cache()  # memoize
     @verb
     def op_verb(stack):
         stack, *args = stack.pop(depth)
@@ -145,7 +164,7 @@ def op(func, depth=2):
 
 
 def op1(func):
-    """ short for op(func,1). Unary Python function to verb"""
+    """ short for op(func, 1). Unary Python function to verb"""
     return op(func, 1)
 
 
@@ -164,101 +183,101 @@ def define(*args):
 
 @verb
 def pop(stack):
+    """
+    discards the top of the stack
+    >>> Stack(..., 'a', pop)
+    Stack(Ellipsis)
+    """
     stack, a = stack.pop()
     return stack
 
 
 @verb
 def dup(stack):
+    """
+    duplicates the top of the stack
+    >>> Stack(..., 'a', dup)
+    Stack(Ellipsis, 'a', 'a')
+    """
     return stack.push(stack.peek())
 
 
 @verb
+def nop(stack):
+    """ no-operation. Returns stack unchanged. """
+    return stack
+
+
+@verb
 def swap(stack):
+    """
+    swaps the top two elements of the stack
+    >>> Stack(..., 'a', 'b', swap)
+    Stack(Ellipsis, 'b', 'a')
+    """
     stack, a, b = stack.pop(2)
     return stack.push(b, a)
 
-# abc is Ic
-# acb is swap
-
-@verb
-def bac(stack):
-    stack, a, b, c = stack.pop(3)
-    return stack.push(b, a, c)
-
-
-@verb
-def bca(stack):
-    stack, a, b, c = stack.pop(3)
-    return stack.push(b, c, a)
-
-
-@verb
-def cab(stack):
-    stack, a, b, c = stack.pop(3)
-    return stack.push(c, a, b)
-
-
-@verb
-def cba(stack):
-    stack, a, b, c = stack.pop(3)
-    return stack.push(c, b, a)
-
-
-@verb
-def bacd(stack):
-    stack, a, b, c, d = stack.pop(4)
-    return stack.push(b, a, c, d)
-
-
-def _private():
-    for cs in list(map(permutations('abcd')))[6:]:
-        def anonymous(stack, cs=cs):
-            stack, *args = stack.pop(4)
-            return stack.push(*(args[ord(cs[i])-ord('a')] for i in range(4)))
-        globals()[''.join(cs)] = anonymous
-_private()
-del _private
-
-
-
-def _private():
-    for cs in list(map(permutations('abcd')))[6:]:
-        def closure(cs=cs):
-            sexp = S(S(DOT, S.stack,
-                            S.push), *(SymbolType(cs[i])
-                                       for i in range(4)))
-
-            def anonymous(stack):
-                stack, a, b, c, d = stack.pop(4)
-                return sexp.eval(locals())
-            anonymous.__name__ = ''.join(cs)
-            return anonymous
-        globals()[''.join(cs)] = closure()
-_private()
-del _private
-
-for cs in list(map(permutations('abcd')))[6:]:
+# creates all depth-3 stack permutation functions
+for _cs in permutations('abc'):
+    if _cs[0] == 'a':
+        # abc is nop
+        # acb is swap
+        continue
     exec('''
-    def {0}(stack):
-        """
-        permutes the top four elements of the stack,
-        >>> Stack(..., 'a', 'b', 'c', 'd', {0})
-        Stack(Ellipsis, '{1}', '{2}', '{3}', '{4}')
-        q
-        """
-        stack, a, b, c, d = stack.pop(4)
-        return stack.push({1},{2},{3},{4})
+@verb
+def {0}(stack):
+    """
+    permutes the top three elements of the stack,
+    >>> Stack(..., 'a', 'b', 'c', {0})
+    Stack(Ellipsis, '{1}', '{2}', '{3}')
+    """
+    stack, a, b, c = stack.pop(3)
+    return stack.push({1},{2},{3})
 
-    '''.format(cs, *cs))
-del cs
-
-
+    '''.format(''.join(_cs), *_cs))
+# del _cs
 
 
+# creates all depth-4 stack permutation functions
+for _cs in permutations('abcd'):
+    if _cs[0] == 'a':
+        continue  # depth < 4; already defined above
+    exec('''
+@verb
+def {0}(stack):
+    """
+    permutes the top four elements of the stack,
+    >>> Stack(..., 'a', 'b', 'c', 'd', {0})
+    Stack(Ellipsis, '{1}', '{2}', '{3}', '{4}')
+    """
+    stack, a, b, c, d = stack.pop(4)
+    return stack.push({1},{2},{3},{4})
 
-popd = define((pop,), dip)
-dupd = define((dup,), dip)
+    '''.format(''.join(_cs), *_cs))
+del _cs
+
+
+# popd = define((pop,), dip)
+@verb
+def popd(stack):
+    """
+    pops one deeper
+    >>> Stack(..., 'a', 'b', popd)
+    Stack(Ellipsis, 'b')
+    """
+    stack, a, b = stack.pop(2)
+    return stack.push(b)
+
+
+# dupd = define((dup,), dip)
+@verb
+def dupd(stack):
+    """
+    duplicates one deeper
+    >>> Stack(..., 'a', 'b', dupd)
+    Stack(Ellipsis, 'a', 'a', 'b')
+    """
 
 
 # ##
@@ -267,15 +286,10 @@ dupd = define((dup,), dip)
 
 
 @verb
-def nop(stack):
-    return stack
-
-
-@verb
-def wrap(stack):
+def quote(stack):
     stack, depth = stack.pop()
     stack, *args = stack.pop(depth)
-    return stack, args
+    return stack.push(args)
 
 
 @verb

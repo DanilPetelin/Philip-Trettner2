@@ -75,11 +75,12 @@ def DOT(scope, obj, *names):
     'r'
     >>> str.join
     <method 'join' of 'str' objects>
-    >>> S(DOT,str,S.join).eval()
+    >>> S(DOT,str,S.join).eval(dict(join='error!'))
     <method 'join' of 'str' objects>
     """
     res = obj
     for n in names:
+        # the unattached subscripts [i] are actually lists, so n[0]
         res = res[n[0]] if isinstance(n, list) else getattr(res, n)
     return res
 
