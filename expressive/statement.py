@@ -517,15 +517,17 @@ def With(guard, func):
 def assign_attr(obj, name, val, oper=None):
     """
     does an augmented assignment to the named attr of obj
-    returns obj for chaining.
+    returns obj.
 
     does a simple replacement if no operator is specified
 
     usually used in combination with the operator module,
     though any appropriate binary function may be used.
-    >>> from operator import add
+    >>> from operator import add, iadd
     >>> spam = lambda:None
-    >>> assign_attr(assign_attr(spam,'eggs',40),'eggs',2,add).eggs
+    >>> assign_attr(assign_attr(spam,'eggs',40),'eggs',1,add).eggs
+    41
+    >>> assign_attr(spam,'eggs',1,iadd).eggs
     42
     """
     if oper:
