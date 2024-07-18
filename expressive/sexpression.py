@@ -15,6 +15,9 @@
 
 """
 S-expression for Python, with macro support.
+
+Usage:
+from expression.sexpression import S
 """
 
 

@@ -23,8 +23,8 @@ arguments, unlike the statements they emulate, which must stand alone.
 
 Despite convention for Python function names, the functions Assert,
 Break, Continue, Elif/Else, For/Else, Import/From, Pass, Raise/From,
-Try/Except/Else/Finally, With, and While/Else are capitalized to avoid
-conflicts with the original Python keywords.
+let/Return, Try/Except/Else/Finally, With, and While/Else are
+capitalized to avoid conflicts with the original Python keywords.
 
 The functional style works better with statements replaced by
 expressions, but be aware that some statement replacements (like For)

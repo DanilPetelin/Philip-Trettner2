@@ -25,6 +25,19 @@ from collections import deque, Mapping
 class Stack:
     """
     Stack is an executable data structure for metaprogramming.
+
+    Pushing a special type of function, called verb, onto a
+    Stack applies the verb to nouns from the stack.
+
+    Non-verb elements are considered nouns.
+
+    Functions that return a verb (like op) are considered adjectives.
+    Adjectives can create or decorate verbs.
+
+    A list containing verbs is still a noun. This is a kind of
+    quoted program.
+
+    Verbs that consume quoted programs are called combinators.
     """
     def __init__(self, *args, rest=None):
         self.head = rest
@@ -160,6 +173,7 @@ def op(func, depth=2):
     def op_verb(stack):
         stack, *args = stack.pop(depth)
         return stack.push(func(*args))
+    op_verb.__name__ = 'verb_'+op_verb.__name__
     return op_verb
 
 
@@ -186,7 +200,7 @@ def pop(stack):
     """
     discards the top of the stack
     >>> Stack(..., 'a', pop)
-    Stack(Ellipsis)
+    Stack(Ellipsis,)
     """
     stack, a = stack.pop()
     return stack
@@ -278,6 +292,8 @@ def dupd(stack):
     >>> Stack(..., 'a', 'b', dupd)
     Stack(Ellipsis, 'a', 'a', 'b')
     """
+    stack, a, b = stack.pop(2)
+    return stack.push(a, a, b)
 
 
 # ##
@@ -287,6 +303,11 @@ def dupd(stack):
 
 @verb
 def quote(stack):
+    """
+    wraps the top n elements in a list
+    >>> Stack('a','b','c',2,quote)
+    Stack('a', ['b', 'c'])
+    """
     stack, depth = stack.pop()
     stack, *args = stack.pop(depth)
     return stack.push(args)
@@ -335,6 +356,12 @@ def dip(stack):
 
 @verb
 def Ic(stack):
+    """
+    the I combinator. Unquotes the iterable by pushing its elements.
+    >>> from operator import add
+    >>> Stack([1,2,op(add)], Ic)
+    Stack(3,)
+    """
     stack, x = stack.pop()
     return stack.push(*x)
 
