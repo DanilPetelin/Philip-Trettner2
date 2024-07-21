@@ -326,20 +326,24 @@ def choice(stack):
 @verb
 def do(stack):
     """
-    calls an ordinary Python function using the stack.
+    The do combinator applies an ordinary Python function to a
+    list of arguments.
     (The print function returns None)
-    >>> Stack((1,2,3),print,do)
+    >>> Stack([1,2,3],print,do)
     1 2 3
     Stack(None,)
 
     Keywords are also supported with a dictionary
-    >>> Stack((1,2,3),dict(sep=':'),print,do)
+    >>> Stack([1,2,3],dict(sep=':'),print,do)
     1:2:3
     Stack(None,)
 
-    Use an empty tuple for no arguments
-    >>> Stack((),dict,do)
+    Use an empty list for no arguments
+    >>> Stack([],dict,do)
     Stack({},)
+
+    Any non-Mapping iterable will do for the arguments list.
+    Any Mapping will do for the keywords dictionary
     """
     stack, kwargs, func = stack.pop(2)
     if isinstance(kwargs, Mapping):
@@ -397,6 +401,15 @@ def dipdd(stack):
 
 @verb
 def ifte(stack):
+    """
+    the if-then-else combinator
+    >>> Stack([True],[['was true'],print,do],[["wasn't"],print,do],ifte)
+    was true
+    Stack(None,)
+    >>> Stack([False],[['was true'],print,do],[["wasn't"],print,do],ifte)
+    wasn't
+    Stack(None,)
+    """
     stack, b, t, e = stack.pop(3)
     return stack.push(*(t if Stack(*b).peek() else e))
 
