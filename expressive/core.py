@@ -102,4 +102,9 @@ def apply(func,*params,args=(),kwargs={}):
     return func(*(params+tuple(args)),**kwargs)
 
 
+def unzip(iterable):
+    """ transpose the iterable. """
+    return zip(*iterable)
+
+
 if __name__ == "__main__": import doctest; doctest.testmod()

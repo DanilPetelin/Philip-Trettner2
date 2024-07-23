@@ -62,14 +62,31 @@ class Stack:
         return it()
 
     def __repr__(self):
-        return 'Stack' + repr(tuple(reversed(tuple(self))))
+        return 'Stack' + repr(tuple(reversed(self)))
         # return 'Stack(head=%s)' % repr(self.head)
+
+    def __reversed__(self):
+        """
+        returns elements in insertion order.
+        >>> list(reversed(Stack(1,2,3)))
+        [1, 2, 3]
+        """
+        return reversed(tuple(self))
 
     def push(self, *args):
         """
-        Add an element on top of the stack.
-        >>> Stack().push(1)
+        push an element on top of the stack. Does not mutate this stack.
+
+        Because Stack is implemented as a linked list, the new stack
+        can (and does) share its tail with the original. Unlike
+        strings, Pushing to a long stack doesn't double the memory
+        required, it just adds a link.
+
+        >>> spam = Stack()
+        >>> spam.push(1)
         Stack(1,)
+        >>> spam  # original is still there.
+        Stack()
 
         Returns the new stack.
         >>> Stack().push(1).push(2).push(3).push(4)
@@ -82,22 +99,31 @@ class Stack:
         Pushing a stack word executes it
         >>> Stack().push(1, dup, 2)
         Stack(1, 1, 2)
+
+        Chaning push after *unpacking
+        >>> Stack().push(*[1, 2, 3]).push(dup)
+        Stack(1, 2, 3, 3)
         """
         return Stack(*args, rest=self.head)
 
     def pop(self, depth=1):
-        """
+        r"""
         >>> four = Stack(1,2,3,4)
-        >>> four.pop()
+        >>> four.pop()  # depth defaults to 1
         (Stack(1, 2, 3), 4)
         >>> four.pop(1)
         (Stack(1, 2, 3), 4)
-        >>> four.pop(2)
+        >>> four.pop(2)  # order preserved.
         (Stack(1, 2), 3, 4)
         >>> four.pop(3)
         (Stack(1,), 2, 3, 4)
         >>> four.pop(4)
         (Stack(), 1, 2, 3, 4)
+        >>> stack, a, b = four.pop(2)
+        >>> print(stack, a, b, sep='\n')
+        Stack(1, 2)
+        3
+        4
         >>> try:
         ...     four.pop(5)
         ...     assert False
@@ -122,7 +148,7 @@ class Stack:
         3
         >>> Stack(1,2,3).peek(1)
         [3]
-        >>> Stack(1,2,3).peek(2)
+        >>> Stack(1,2,3).peek(2)  # order preserved
         [2, 3]
         >>> Stack(1,2,3).peek(3)
         [1, 2, 3]
@@ -149,6 +175,7 @@ def verb(func):
     return func
 
 
+@lru_cache()  # memoized
 def op(func, depth=2):
     """
     converts a binary Python function into a verb
@@ -168,7 +195,6 @@ def op(func, depth=2):
     >>> Stack(1,2,3,op(Tuple))
     Stack(1, (2, 3))
     """
-    @lru_cache()  # memoize
     @verb
     def op_verb(stack):
         stack, *args = stack.pop(depth)
@@ -400,6 +426,27 @@ def dipdd(stack):
 
 
 @verb
+def step(stack):
+    stack, it, p = stack.pop(2)
+    for a in it:
+        stack.push(a).push(*p)
+
+
+@verb
+def nullary(stack):
+    stack, p = stack.pop()
+    return stack.push(stack.push(*p).peek())
+
+
+@verb
+def cleave(stack):
+    stack, x, p, q = stack.pop(3)
+    return stack.push(
+        stack.push(x, *p).peek(),
+        stack.push(x, *q).peek())
+
+
+@verb
 def ifte(stack):
     """
     the if-then-else combinator
@@ -415,13 +462,22 @@ def ifte(stack):
 
 
 @verb
-def step(stack):
-    stack, it, p = stack.pop(2)
-    for a in it:
-        stack.push(a).push(*p)
+def times(stack):
+    stack, n, p = stack.pop(2)
+    for i in range(n):
+        stack = stack.push(*p)
 
 
+@verb
+def infra(stack):
+    stack, a, p = stack.pop(2)
+    return stack.push(Stack(*reversed(a)).push(*p))
 
+
+@verb
+def subspace(stack):
+    stack, a, p = stack.pop(2)
+    return stack.push(Stack(*a).push(*p))
 
 
 if __name__ == "__main__": import doctest; doctest.testmod()
