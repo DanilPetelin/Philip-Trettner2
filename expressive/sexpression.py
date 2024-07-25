@@ -95,7 +95,9 @@ class SExpression:
         self.args = args
         self.kwargs = kwargs
 
-    def eval(self, scope=()):
+    def eval(self, scope=None):
+        if not scope:
+            scope = {}
         func = try_eval(self.func, scope)
         if hasattr(func, '__macro__'):
             return try_eval(func(scope, *self.args, **self.kwargs), scope)
@@ -168,7 +170,7 @@ def _private():
                 return 'SymbolType(%s)' % repr(self.data)
             return 'S.'+self.data
 
-        def eval(self, scope=()):
+        def eval(self, scope={}):
             """ looks up itself in scope """
             try:
                 return scope[self]
@@ -187,7 +189,7 @@ def _private():
         def __call__(self, func, *args, **kwargs):
             return SExpression(func,*args,**kwargs)
 
-        def __getattribute__(self,attr):
+        def __getattribute__(self, attr):
             return SymbolType(attr)
 
     return S_Syntax()
