@@ -45,7 +45,7 @@ def LAMBDA(scope, symbols, body):
         # new local scope based on current scope
         local = dict(scope)
         # update with arguments
-        local.update({s.data:v for s, v in zip(symbols, vals)})
+        local.update(zip(symbols, vals))
         return body.eval(local)
     return res
 
