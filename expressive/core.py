@@ -60,10 +60,10 @@ returns the first argument.
 def _private():
     from itertools import islice, zip_longest
 
-    sentinel = object()
+    _sentinel = object()
 
     # noinspection PyShadowingNames
-    def partition(iterable, n=2, step=None, fillvalue=sentinel):
+    def partition(iterable, n=2, step=None, fillvalue=_sentinel):
         """
         Chunks iterable into tuples of length n. (default pairs)
         >>> list(partition(range(10)))
@@ -87,7 +87,7 @@ def _private():
         """
         step = step or n
         slices = (islice(iterable, start, None, step) for start in range(n))
-        if fillvalue is sentinel:
+        if fillvalue is _sentinel:
             return zip(*slices)
         else:
             return zip_longest(*slices, fillvalue=fillvalue)
