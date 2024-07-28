@@ -97,7 +97,7 @@ partition = _private()
 del _private
 
 
-def arkwargs(*args, **kwargs):
+def akw(*args, **kwargs):
     return args, kwargs
 
 def apply(func, *params,  arkwarg):

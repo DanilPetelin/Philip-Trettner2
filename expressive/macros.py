@@ -16,9 +16,10 @@
 """
 
 """
+from _collections_abc import Mapping
 
-
-from sexpression import S, try_eval
+from expressive.sexpression import S, SelfEval
+from expressive.statement import Elif
 
 
 def macro(func):
@@ -30,39 +31,178 @@ def macro(func):
     func.__macro__ = None
     return func
 
+class Scope(Mapping):
+    def __len__(self):
+        return len(self.vars)
+
+    def __iter__(self):
+        return iter(self.vars)
+
+    def __init__(self, parent, locals=None, kwvals=None, nonlocals=None):
+        self.parent = parent
+        self.vars = locals or {}
+        if kwvals:
+            self.vars.update(kwvals)
+        self.nonlocals = nonlocals or set()
+
+    def __getitem__(self, name):
+        try:
+            return self.vars[name]
+        except KeyError:
+            try:
+                return self.parent[name]
+            except TypeError as err:
+                pass
+            except KeyError as err:
+                pass
+            raise NameError('name %s is not defined in scope' % repr(name)) from err
+
+    def __setitem__(self, name, val):
+        if name in self.nonlocals:
+            try:
+                self.parent[name] = val
+            except KeyError as err:
+                pass
+            except TypeError as err:
+                pass
+            raise NameError('nonlocal %s not found' % repr(name)) from err
+        else:
+            self.vars[name] = val
+
+    def Nonlocal(self, *names):
+        self.nonlocals |= set(names)
+
+class LambdaType:
+    def __init__(self, symbols, body):
+        self.symbols = SelfEval.of(symbols)
+        self.body = SelfEval.of(body)
+
+    def eval(self, scope=None):
+        symbols = self.symbols.eval(scope)
+
+        def lx(*args, **kwargs):
+            return self.body.eval(
+                Scope(scope,
+                      dict(zip(symbols, args)),
+                      kwargs))
+        return lx
 
 @macro
-def LAMBDA(scope, symbols, body):
+def Lx(symbols, body):
     """
     >>> from operator import add
-    >>> plus = S(LAMBDA,(S.x,S.y),S(add,S.x,S.y))
+    >>> plus = S(Lx,(S.x,S.y),S(add,S.x,S.y))
     >>> S(plus,40,2).eval()
     42
     >>> S(plus,20,4).eval()
     24
     """
-    def res(*vals,**kwvals):
-        # new local scope based on current scope
-        local = dict(scope)
-        # update with arguments
-        local.update(zip(symbols, vals))
-        return body.eval(local)
-    return res
+    return LambdaType(symbols, body)
+
+class ThunkType:
+    def __init__(self, body):
+        self.body = body
+
+    def eval(self, scope=None):
+        def thunk():
+            return self.body.eval(scope) if hasattr(self.body, 'eval') else self.body
+        return thunk
+@macro
+def THUNK(body):
+    return ThunkType(body)
 
 
 @macro
-def IF(scope, B, Then, *rest):
-    if try_eval(B, scope):
-        return Then
-    if len(rest) == 0:
-        return None
-    if len(rest) == 1:
-        return rest[0]
-    return IF(*rest)
+def IF(Boolean, Then, Else=None):
+    """
+    >>> from operator import add, sub
+    >>> S(IF,S(sub,1,1),S(print,'then')).eval()
+    >>> S(IF,S(add,1,1),S(print,'then')).eval()
+    then
+    >>> S(IF,S(add,1,1),S(print,'then'),S(print,'else')).eval()
+    then
+    >>> S(IF,S(sub,1,1),S(print,'then'),S(print,'else')).eval()
+    else
+    """
+    return S(EVAL,S((Else,Then).__getitem__,S(bool,Boolean)))
+
+@macro
+def IF2(boolean, then, Else=None):
+    """
+    >>> from operator import add, sub
+    >>> S(IF2,S(sub,1,1),S(print,'then')).eval()
+    >>> S(IF2,S(add,1,1),S(print,'then')).eval()
+    then
+    >>> S(IF2,S(add,1,1),S(print,'then'),S(print,'else')).eval()
+    then
+    >>> S(IF2,S(sub,1,1),S(print,'then'),S(print,'else')).eval()
+    else
+    """
+    return S(Elif,S(THUNK,boolean),S(THUNK,then),Else=S(THUNK,Else))
+
+@macro
+def EVAL(body):
+    return EvalType(body)
+
+class EvalType:
+    def __init__(self, body):
+        self.body = body
+
+    def eval(self,scope):
+        if hasattr(self.body,'eval'):
+            res = self.body.eval(scope)
+            if hasattr(res,'eval'):
+                return res.eval(scope)
+            return res
+        return self.body
+
+@macro
+def COND(scope, *rest):
+    return S(Elif,*map(lambda x: S(THUNK,x),rest))
+
+
+# @macro
+# def AND(first=True, *rest):
+#     """
+#     returns the first false argument. Shortcuts evaluation of the
+#     remaining S expressions.
+#     >>> S(AND).eval()
+#     True
+#     >>> S(AND,'yes').eval()
+#     'yes'
+#     >>> S(AND,False).eval()
+#     False
+#     >>> S(AND,S(str,1),True,"yes",S(print,'shortcut?'),S(print,'nope')).eval()
+#     shortcut?
+#     """
+#     return S(IF,first,S(EVAL,S(AND,*rest)),first)
+#
+# @macro
+# def OR(scope, first=None, *rest):
+#     """
+#     returns the first true argument. Shortcuts evaluation of the
+#     remaining S expressions.
+#     >>> S(OR).eval()
+#     >>> S(OR,'yes').eval()
+#     'yes'
+#     >>> S(OR,[]).eval()
+#     []
+#     >>> S(OR,[],'yes').eval()
+#     'yes'
+#     >>> S(OR,[],'',False,S(print,'shortcut?'),'yes?',S(print,'nope')).eval()
+#     shortcut?
+#     'yes?'
+#     """
+#     first = try_eval(first, scope)
+#     if not rest:
+#         return first
+#     if first:
+#         return first
+#     return OR(scope, *rest)
 
 
 @macro
-def DOT(scope, obj, *names):
+def DOT(obj, *names):
     """
     attribute and index/key access macro
     >>> 'quux'[-1]
@@ -89,14 +229,14 @@ def _private():
     _sentinel = S(None)  # used only for is check
 
     @macro
-    def THREAD(scope, x, first=_sentinel, *rest):
+    def THREAD(x, first=_sentinel, *rest):
         # TODO: doctest THREAD
         if first is _sentinel:
             return x
         return THREAD(S(first.func,x,*first.args,**first.kwargs),*rest)
 
     @macro
-    def THREAD_TAIL(scope, x, first=_sentinel, *rest):
+    def THREAD_TAIL(x, first=_sentinel, *rest):
         # TODO: doctest THREAD_TAIL
         if first is _sentinel:
             return x
@@ -109,49 +249,31 @@ THREAD_TAIL = None
 THREAD, THREAD_TAIL = _private()
 del _private
 
-@macro
-def AND(scope, first=True, *rest):
-    """
-    returns the first false argument. Shortcuts evaluation of the
-    remaining S expressions.
-    >>> S(AND).eval()
-    True
-    >>> S(AND,'yes').eval()
-    'yes'
-    >>> S(AND,False).eval()
-    False
-    >>> S(AND,S(str,1),True,"yes",S(print,'shortcut?'),S(print,'nope')).eval()
-    shortcut?
-    """
-    first = try_eval(first, scope)
-    if not rest:
-        return first
-    if not first:
-        return first
-    return AND(scope, *rest)
-
-@macro
-def OR(scope, first=None, *rest):
-    """
-    returns the first true argument. Shortcuts evaluation of the
-    remaining S expressions.
-    >>> S(OR).eval()
-    >>> S(OR,'yes').eval()
-    'yes'
-    >>> S(OR,[]).eval()
-    []
-    >>> S(OR,[],'yes').eval()
-    'yes'
-    >>> S(OR,[],'',False,S(print,'shortcut?'),'yes?',S(print,'nope')).eval()
-    shortcut?
-    'yes?'
-    """
-    first = try_eval(first, scope)
-    if not rest:
-        return first
-    if first:
-        return first
-    return OR(scope, *rest)
-
-
 if __name__ == "__main__": import doctest; doctest.testmod()
+
+## performance tests; scratch -- delete
+# from time import time
+# def timeif(n):
+#     acc = 0
+#     for x in range(n):
+#         start = time()
+#         S(IF,True,1)
+#         runtime = time()-start
+#         acc+=runtime
+#     return acc
+# def timeif2(n):
+#     acc = 0
+#     for x in range(n):
+#         start = time()
+#         S(IF2,True,1)
+#         runtime = time()-start
+#         acc+=runtime
+#     return acc
+# def timenativeif(n):
+#     acc = 0
+#     for x in range(n):
+#         start = time()
+#         1 if True else None
+#         runtime = time()-start
+#         acc+=runtime
+#     return acc

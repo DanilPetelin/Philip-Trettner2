@@ -33,7 +33,9 @@ class SExpression:
     >>> from operator import add, mul
     >>> spam = S(add,20,4)
     >>> spam
-    S(<built-in function add>, *(20, 4))
+    S(<built-in function add>,
+        20,
+        4)
     >>> spam.eval()  # same as >>> add(20,4)
     24
     >>> spam = S(add,S(mul,4,10),2)
@@ -54,11 +56,10 @@ class SExpression:
     These are given any nested S objects unevaluated, and return a
     new S object to be evaluated; rewriting code before it's
     executed.
-    >>> If = lambda scope,b,t,e=None: t if try_eval(b,scope) else e
-    >>> If.__macro__ = None
-    >>> S(If, True, S(print,'yes'), S(print,'no')).eval()
+    >>> from expressive.macros import IF
+    >>> S(IF, True, S(print,'yes'), S(print,'no')).eval()
     yes
-    >>> S(If, False, S(print,'yes'), S(print,'no')).eval()
+    >>> S(IF, False, S(print,'yes'), S(print,'no')).eval()
     no
 
     For comparison, note that a non-macro function gets any nested
@@ -75,7 +76,8 @@ class SExpression:
     This doesn't print 'test'.
     >>> identity = lambda x: x
     >>> S(identity,[S(print,'test')]).eval()
-    [S(<built-in function print>, *('test',))]
+    [S(<built-in function print>,
+        'test')]
 
     This does, since it uses another S-expression to make the list.
     >>> make_list = lambda *xs: list(xs)
@@ -91,34 +93,60 @@ class SExpression:
     """
 
     def __init__(self, func, *args, **kwargs):
+        self.wfunc = SelfEval.of(func)
         self.func = func
+        self.wargs = tuple(SelfEval.of(a) for a in args)
         self.args = args
+        self.wkwargs = {k: SelfEval.of(v) for k, v in kwargs.items()}
         self.kwargs = kwargs
 
     def eval(self, scope=None):
-        if not scope:
-            scope = {}
-        func = try_eval(self.func, scope)
+        func = self.wfunc.eval(scope)
         if hasattr(func, '__macro__'):
-            return try_eval(func(scope, *self.args, **self.kwargs), scope)
+            # return try_eval(func(*self.args, **self.kwargs), scope)
+            form = func(*self.args, **self.kwargs)
+            return form.eval(scope) if hasattr(form,'eval') else form
         return func(
-            *(try_eval(a, scope) for a in self.args),
-            **{k: try_eval(v, scope) for k, v in self.kwargs.items()})
+            *(a.eval(scope) for a in self.wargs),
+            **{k: v.eval(scope) for k, v in self.wkwargs.items()})
 
     def __repr__(self):
+        indent = '\n    '
         return "S({0}{1}{2})".format(
             repr(self.func),
-            ', *'+repr(self.args) if self.args else '',
-            ', **'+repr(self.kwargs) if self.kwargs else '')
+            ',' + indent + (',' + indent).join(
+                map(lambda a: repr(a).replace('\n', indent), self.args))
+            if self.args else '',
+            ',{0}**{1}'.format(indent, repr(self.kwargs).replace('\n', indent))
+            if self.kwargs else '')
 
 
 class SymbolError(NameError):
     pass
 
 
+class SelfEval:
+    __slots__ = ('item',)
+
+    def __init__(self, item):
+        self.item = item
+
+    def eval(self, scope):
+        return self.item
+
+    def __repr__(self):
+        return 'SelfEval(%s)' % repr(self.item)
+
+    @classmethod
+    def of(cls, item):
+        if hasattr(item,'eval'):
+            return item
+        return cls(item)
+
 def _private():
     from collections import UserString
     from keyword import kwlist as _keyword_set
+
     _keyword_set = set(_keyword_set)
 
     # noinspection PyShadowingNames
@@ -130,10 +158,10 @@ def _private():
         >>> spam = 1
         >>> nosymbol = S(print,spam)
         >>> nosymbol  # spam already resolved to 1
-        S(<built-in function print>, *(1,))
+        S(<built-in function print>, 1)
         >>> withsymbol = S(print,S.spam)
         >>> withsymbol  # S.spam is still a symbol
-        S(<built-in function print>, *(S.spam,))
+        S(<built-in function print>, S.spam)
         >>> nosymbol.eval()
         1
 
@@ -153,6 +181,7 @@ def _private():
         >>> S.quux + S.norf
         S.quuxnorf
         """
+
         def __init__(self, name):
             super().__init__(name)
             # self.__name__ = 'SymbolType'
@@ -168,17 +197,22 @@ def _private():
             """
             if not self.data.isidentifier() or self.data in _keyword_set:
                 return 'SymbolType(%s)' % repr(self.data)
-            return 'S.'+self.data
+            return 'S.' + self.data
 
         def eval(self, scope={}):
             """ looks up itself in scope """
             try:
                 return scope[self]
-            except KeyError as ke:
-                raise SymbolError(
-                    'Symbol %s is not bound in the given scope' % repr(self))
+            except KeyError as ex:
+                pass
+            except TypeError as ex:
+                pass
+            raise SymbolError(
+                'Symbol %s is not bound in the given scope' % repr(self)
+            ) from ex
 
     return SymbolType
+
 
 SymbolType = _private()
 del _private
@@ -187,22 +221,16 @@ del _private
 def _private():
     class S_Syntax:
         def __call__(self, func, *args, **kwargs):
-            return SExpression(func,*args,**kwargs)
+            return SExpression(func, *args, **kwargs)
 
         def __getattribute__(self, attr):
             return SymbolType(attr)
 
     return S_Syntax()
 
+
 S = _private()
 del _private
-
-
-def try_eval(s, scope=()):
-    try:
-        return s.eval(scope)
-    except AttributeError:
-        return s  # anything without an eval() evals to itself.
 
 
 # def GENX(func,iterable,predicate):
