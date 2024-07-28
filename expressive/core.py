@@ -97,9 +97,13 @@ partition = _private()
 del _private
 
 
-def apply(func,*params,args=(),kwargs={}):
+def arkwargs(*args, **kwargs):
+    return args, kwargs
+
+def apply(func, *params,  arkwarg):
     # TODO: doctest apply
-    return func(*(params+tuple(args)),**kwargs)
+    args, kwargs = arkwarg
+    return func(*(params+args), **kwargs)
 
 
 def unzip(iterable):
