@@ -17,8 +17,9 @@
 
 """
 from _collections_abc import Mapping
+from core import partition
 
-from expressive.sexpression import S, SelfEval
+from expressive.sexpression import S, Quote
 from expressive.statement import Elif
 
 
@@ -73,23 +74,27 @@ class Scope(Mapping):
         self.nonlocals |= set(names)
 
 class LambdaType:
-    def __init__(self, symbols, body):
-        self.symbols = SelfEval.of(symbols)
-        self.body = SelfEval.of(body)
+    def __init__(self, symbols, body, Nonlocals):
+        self.symbols = Quote.of(symbols)
+        self.body = Quote.of(body)
+        self.nonlocals = Quote.of(Nonlocals)
 
     def eval(self, scope=None):
         symbols = self.symbols.eval(scope)
+        nonlocals = self.nonlocals.eval(scope)
 
         def lx(*args, **kwargs):
             return self.body.eval(
                 Scope(scope,
                       dict(zip(symbols, args)),
-                      kwargs))
+                      kwargs,
+                      nonlocals))
         return lx
 
 @macro
-def Lx(symbols, body):
+def Lx(symbols, body, Nonlocals=None):
     """
+    lambda expression.
     >>> from operator import add
     >>> plus = S(Lx,(S.x,S.y),S(add,S.x,S.y))
     >>> S(plus,40,2).eval()
@@ -97,15 +102,36 @@ def Lx(symbols, body):
     >>> S(plus,20,4).eval()
     24
     """
-    return LambdaType(symbols, body)
+    return LambdaType(symbols, body, Nonlocals)
+
+class SetvType:
+    def __init__(self, pairs):
+        self.pairs = ((q, Quote.of(x)) for q, x in partition(pairs))
+
+    def eval(self, scope):
+        for var, val in self.pairs:
+            scope[var] = val.eval(scope)
+
+
+@macro
+def SETQ(*pairs):
+    """
+    >>> from operator import add
+    >>> S(SETQ,S.spam,1,S.eggs,S(add,1,S.spam)).eval(globals())
+    >>> spam
+    1
+    >>> eggs
+    2
+    """
+    return SetvType(pairs)
 
 class ThunkType:
     def __init__(self, body):
-        self.body = body
+        self.body = Quote.of(body)
 
     def eval(self, scope=None):
         def thunk():
-            return self.body.eval(scope) if hasattr(self.body, 'eval') else self.body
+            return self.body.eval(scope)
         return thunk
 @macro
 def THUNK(body):
@@ -124,7 +150,10 @@ def IF(Boolean, Then, Else=None):
     >>> S(IF,S(sub,1,1),S(print,'then'),S(print,'else')).eval()
     else
     """
-    return S(EVAL,S((Else,Then).__getitem__,S(bool,Boolean)))
+    return S(EVAL,
+             S((Else, Then).__getitem__,
+               S(bool,
+                 Boolean)))
 
 @macro
 def IF2(boolean, then, Else=None):
@@ -138,7 +167,13 @@ def IF2(boolean, then, Else=None):
     >>> S(IF2,S(sub,1,1),S(print,'then'),S(print,'else')).eval()
     else
     """
-    return S(Elif,S(THUNK,boolean),S(THUNK,then),Else=S(THUNK,Else))
+    return S(Elif,
+             S(THUNK,
+               boolean),
+             S(THUNK,
+               then),
+             Else=S(THUNK,
+                    Else))
 
 @macro
 def EVAL(body):
@@ -157,8 +192,13 @@ class EvalType:
         return self.body
 
 @macro
-def COND(scope, *rest):
-    return S(Elif,*map(lambda x: S(THUNK,x),rest))
+def COND(*rest, Else=None):
+    return S(Elif,
+             *map(lambda x: S(THUNK,
+                              x),
+                  rest),
+             Else=S(THUNK,
+                    Else))
 
 
 # @macro

@@ -34,8 +34,8 @@ class SExpression:
     >>> spam = S(add,20,4)
     >>> spam
     S(<built-in function add>,
-        20,
-        4)
+      20,
+      4)
     >>> spam.eval()  # same as >>> add(20,4)
     24
     >>> spam = S(add,S(mul,4,10),2)
@@ -77,7 +77,7 @@ class SExpression:
     >>> identity = lambda x: x
     >>> S(identity,[S(print,'test')]).eval()
     [S(<built-in function print>,
-        'test')]
+      'test')]
 
     This does, since it uses another S-expression to make the list.
     >>> make_list = lambda *xs: list(xs)
@@ -93,11 +93,11 @@ class SExpression:
     """
 
     def __init__(self, func, *args, **kwargs):
-        self.wfunc = SelfEval.of(func)
+        self.wfunc = Quote.of(func)
         self.func = func
-        self.wargs = tuple(SelfEval.of(a) for a in args)
+        self.wargs = tuple(Quote.of(a) for a in args)
         self.args = args
-        self.wkwargs = {k: SelfEval.of(v) for k, v in kwargs.items()}
+        self.wkwargs = {k: Quote.of(v) for k, v in kwargs.items()}
         self.kwargs = kwargs
 
     def eval(self, scope=None):
@@ -111,7 +111,7 @@ class SExpression:
             **{k: v.eval(scope) for k, v in self.wkwargs.items()})
 
     def __repr__(self):
-        indent = '\n    '
+        indent = '\n  '
         return "S({0}{1}{2})".format(
             repr(self.func),
             ',' + indent + (',' + indent).join(
@@ -125,7 +125,7 @@ class SymbolError(NameError):
     pass
 
 
-class SelfEval:
+class Quote:
     __slots__ = ('item',)
 
     def __init__(self, item):
@@ -135,7 +135,7 @@ class SelfEval:
         return self.item
 
     def __repr__(self):
-        return 'SelfEval(%s)' % repr(self.item)
+        return 'Quote(%s)' % repr(self.item)
 
     @classmethod
     def of(cls, item):
@@ -158,10 +158,12 @@ def _private():
         >>> spam = 1
         >>> nosymbol = S(print,spam)
         >>> nosymbol  # spam already resolved to 1
-        S(<built-in function print>, 1)
+        S(<built-in function print>,
+          1)
         >>> withsymbol = S(print,S.spam)
         >>> withsymbol  # S.spam is still a symbol
-        S(<built-in function print>, S.spam)
+        S(<built-in function print>,
+          S.spam)
         >>> nosymbol.eval()
         1
 

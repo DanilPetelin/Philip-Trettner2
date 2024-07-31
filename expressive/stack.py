@@ -166,7 +166,7 @@ class Stack:
         return res
 
 # ###
-# verb creation functions
+# adjectives
 # ###
 
 def verb(func):
@@ -276,7 +276,7 @@ def {0}(stack):
     return stack.push({1},{2},{3})
 
     '''.format(''.join(_cs), *_cs))
-# del _cs
+del _cs
 
 
 # creates all depth-4 stack permutation functions
