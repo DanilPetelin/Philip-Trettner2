@@ -18,7 +18,7 @@ Stack-based combinator algebra for Python.
 
 from functools import lru_cache
 from itertools import permutations
-from expressive.core import Tuple
+from expressive.core import Tuple, List
 from collections import deque, Mapping
 
 
@@ -382,6 +382,12 @@ def do(stack):
 def dip(stack):
     stack, x, p = stack.pop(2)
     return stack.push(*p).push(x)
+
+
+@verb
+def cons(stack):
+    stack, p, q = stack.pop(2)
+    return stack.push(List(p, *q))
 
 
 @verb
