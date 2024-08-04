@@ -20,7 +20,7 @@ from _collections_abc import Mapping
 from core import partition
 
 from expressive.sexpression import S, Quote
-from expressive.statement import Elif
+from expressive.statement import Elif, progn
 
 
 def macro(func):
@@ -73,10 +73,10 @@ class Scope(Mapping):
     def Nonlocal(self, *names):
         self.nonlocals |= set(names)
 
-class LambdaType:
+class Lambda:
     def __init__(self, symbols, body, Nonlocals):
         self.symbols = Quote.of(symbols)
-        self.body = Quote.of(body)
+        self.body = body
         self.nonlocals = Quote.of(Nonlocals)
 
     def eval(self, scope=None):
@@ -92,7 +92,7 @@ class LambdaType:
         return lx
 
 @macro
-def Lx(symbols, body, Nonlocals=None):
+def Lx(symbols, *body, Nonlocals=None):
     """
     lambda expression.
     >>> from operator import add
@@ -102,9 +102,9 @@ def Lx(symbols, body, Nonlocals=None):
     >>> S(plus,20,4).eval()
     24
     """
-    return LambdaType(symbols, body, Nonlocals)
+    return Lambda(symbols, S(progn,body), Nonlocals)
 
-class SetvType:
+class SetQ:
     def __init__(self, pairs):
         self.pairs = ((q, Quote.of(x)) for q, x in partition(pairs))
 
@@ -123,7 +123,20 @@ def SETQ(*pairs):
     >>> eggs
     2
     """
-    return SetvType(pairs)
+    return SetQ(pairs)
+
+
+class Nonlocal:
+    def __init__(self, symbols):
+        self.symbols = symbols
+
+    def eval(self,scope):
+        scope.Nonlocal(*self.symbols)
+
+
+@macro
+def NONLOCAL(*symbols):
+    return Nonlocal(symbols)
 
 class ThunkType:
     def __init__(self, body):
