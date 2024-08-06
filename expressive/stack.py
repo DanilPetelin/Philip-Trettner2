@@ -389,6 +389,10 @@ def cons(stack):
     stack, p, q = stack.pop(2)
     return stack.push(List(p, *q))
 
+@verb
+def take(stack):
+    stack, p, q = stack.pop(2)
+    return stack.push(list(p)+[q])
 
 @verb
 def Ic(stack):
@@ -401,15 +405,34 @@ def Ic(stack):
     stack, x = stack.pop()
     return stack.push(*x)
 
+@verb
+def Jc(stack):
+    stack, p, q, r, s = stack.pop(4)
+    return stack.push(q, p, *s).push(r, *s)
 
 @verb
 def Bc(stack):
     stack, p, q = stack.pop()
     return stack.push(*p).push(*q)
 
+@verb
+def Sc(stack):
+    stack, p, q, r = stack.pop(3)
+    return stack.push(List(p, *q), p, *r)
+
+@verb
+def Tc(stack):
+    stack, p, q = stack.pop(2)
+    return stack.push(q, *p)
 
 Cc = define([swap], dip, Ic)
-Kc = define([pop], dip, Ic)
+
+# Kc = define([pop], dip, Ic)
+@verb
+def Kc(stack):
+    stack, p, q = stack.pop(2)
+    return stack.push(*q)
+
 Wc = define([dup], dip, Ic)
 
 
@@ -442,7 +465,6 @@ def step(stack):
 def nullary(stack):
     stack, p = stack.pop()
     return stack.push(stack.push(*p).peek())
-
 
 @verb
 def cleave(stack):
