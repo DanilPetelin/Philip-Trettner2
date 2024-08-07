@@ -53,10 +53,12 @@ Use the metaclass directly to substitute for `class`
 is the same as
   class X(A, B): a = 1
 
-A substitute for `def` is not provided, but `lambda` is a viable
+A substitute for `def` is not provided here, but `lambda` is a viable
 alternative now that most statements are available as expressions.
 Multiple sequential expressions are available in lambda via progn.
 Multiple exits are available via let/progn/Return()
+
+See stack.Def and macros.Lx for two alternative `def` substitutes.
 """
 
 

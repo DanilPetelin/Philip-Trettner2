@@ -165,6 +165,7 @@ class Stack:
             stack, res = self.pop()
         return res
 
+
 # ###
 # adjectives
 # ###
@@ -208,7 +209,7 @@ def op1(func):
     return op(func, 1)
 
 
-def define(*args):
+def defverb(*args):
     """ Creates a new verb that pushes the given arguments on the stack. """
     @verb
     def phrase(stack):
@@ -298,7 +299,7 @@ def {0}(stack):
 del _cs
 
 
-# popd = define((pop,), dip)
+# popd = defverb((pop,), dip)
 @verb
 def popd(stack):
     """
@@ -310,7 +311,7 @@ def popd(stack):
     return stack.push(b)
 
 
-# dupd = define((dup,), dip)
+# dupd = defverb((dup,), dip)
 @verb
 def dupd(stack):
     """
@@ -425,15 +426,15 @@ def Tc(stack):
     stack, p, q = stack.pop(2)
     return stack.push(q, *p)
 
-Cc = define([swap], dip, Ic)
+Cc = defverb([swap], dip, Ic)
 
-# Kc = define([pop], dip, Ic)
+# Kc = defverb([pop], dip, Ic)
 @verb
 def Kc(stack):
     stack, p, q = stack.pop(2)
     return stack.push(*q)
 
-Wc = define([dup], dip, Ic)
+Wc = defverb([dup], dip, Ic)
 
 
 @verb
@@ -506,6 +507,19 @@ def infra(stack):
 def subspace(stack):
     stack, a, p = stack.pop(2)
     return stack.push(Stack(*a).push(*p))
+
+
+def Def(*words):
+    """
+    Define a Python function from stack words.
+    >>> from operator import mul
+    >>> square = Def(dup,op(mul))
+    >>> square(7)
+    49
+    >>> square(4)
+    16
+    """
+    return lambda *args: Stack(*args).push(*words).peek()
 
 
 if __name__ == "__main__": import doctest; doctest.testmod()
