@@ -42,7 +42,7 @@ class Stack:
     def __init__(self, *args, rest=None):
         self.head = rest
         for w in args:
-            if hasattr(w, '__verb__'):
+            if isinstance(w, Verb):
                 self.head = w(self).head
             else:
                 self.head = (self.head, w)
@@ -170,10 +170,16 @@ class Stack:
 # adjectives
 # ###
 
-def verb(func):
+class Verb:
     """Marks func as a verb. Verbs act on nouns in a Stack."""
-    func.__verb__ = None
-    return func
+    def __init__(self, func):
+        self.func = func
+
+    def __call__(self, stack):
+        return self.func(stack)
+
+    def __repr__(self):
+        return self.func.__name__
 
 
 @lru_cache()  # memoized
@@ -196,11 +202,16 @@ def op(func, depth=2):
     >>> Stack(1,2,3,op(Tuple))
     Stack(1, (2, 3))
     """
-    @verb
+    class OpVerb(Verb):
+        def __repr__(self):
+            if depth == 2:
+                return "op(%s)" % func.__name__
+            return "op({0}, {1})".format(func.__name, depth)
+
+    @OpVerb
     def op_verb(stack):
         stack, *args = stack.pop(depth)
         return stack.push(func(*args))
-    op_verb.__name__ = 'verb_'+op_verb.__name__
     return op_verb
 
 
@@ -211,7 +222,7 @@ def op1(func):
 
 def defverb(*args):
     """ Creates a new verb that pushes the given arguments on the stack. """
-    @verb
+    @Verb
     def phrase(stack):
         return stack.push(*args)
     return phrase
@@ -222,7 +233,7 @@ def defverb(*args):
 # ##
 
 
-@verb
+@Verb
 def pop(stack):
     """
     discards the top of the stack
@@ -233,7 +244,7 @@ def pop(stack):
     return stack
 
 
-@verb
+@Verb
 def dup(stack):
     """
     duplicates the top of the stack
@@ -243,13 +254,13 @@ def dup(stack):
     return stack.push(stack.peek())
 
 
-@verb
+@Verb
 def nop(stack):
     """ no-operation. Returns stack unchanged. """
     return stack
 
 
-@verb
+@Verb
 def swap(stack):
     """
     swaps the top two elements of the stack
@@ -266,7 +277,7 @@ for _cs in permutations('abc'):
         # acb is swap
         continue
     exec('''
-@verb
+@Verb
 def {0}(stack):
     """
     permutes the top three elements of the stack,
@@ -285,7 +296,7 @@ for _cs in permutations('abcd'):
     if _cs[0] == 'a':
         continue  # depth < 4; already defined above
     exec('''
-@verb
+@Verb
 def {0}(stack):
     """
     permutes the top four elements of the stack,
@@ -300,7 +311,7 @@ del _cs
 
 
 # popd = defverb((pop,), dip)
-@verb
+@Verb
 def popd(stack):
     """
     pops one deeper
@@ -312,7 +323,7 @@ def popd(stack):
 
 
 # dupd = defverb((dup,), dip)
-@verb
+@Verb
 def dupd(stack):
     """
     duplicates one deeper
@@ -328,7 +339,7 @@ def dupd(stack):
 # ##
 
 
-@verb
+@Verb
 def quote(stack):
     """
     wraps the top n elements in a list
@@ -340,7 +351,7 @@ def quote(stack):
     return stack.push(args)
 
 
-@verb
+@Verb
 def choice(stack):
     stack, b, t, f = stack.pop(3)
     return stack.push(t if b else f)
@@ -350,7 +361,7 @@ def choice(stack):
 # Combinators
 # ##
 
-@verb
+@Verb
 def do(stack):
     """
     The do combinator applies an ordinary Python function to a
@@ -379,23 +390,23 @@ def do(stack):
     return stack.push(func(*kwargs))  # kwargs was just args
 
 
-@verb
+@Verb
 def dip(stack):
     stack, x, p = stack.pop(2)
     return stack.push(*p).push(x)
 
 
-@verb
+@Verb
 def cons(stack):
     stack, p, q = stack.pop(2)
     return stack.push(List(p, *q))
 
-@verb
+@Verb
 def take(stack):
     stack, p, q = stack.pop(2)
     return stack.push(list(p)+[q])
 
-@verb
+@Verb
 def Ic(stack):
     """
     the I combinator. Unquotes the iterable by pushing its elements.
@@ -406,22 +417,22 @@ def Ic(stack):
     stack, x = stack.pop()
     return stack.push(*x)
 
-@verb
+@Verb
 def Jc(stack):
     stack, p, q, r, s = stack.pop(4)
     return stack.push(q, p, *s).push(r, *s)
 
-@verb
+@Verb
 def Bc(stack):
     stack, p, q = stack.pop()
     return stack.push(*p).push(*q)
 
-@verb
+@Verb
 def Sc(stack):
     stack, p, q, r = stack.pop(3)
     return stack.push(List(p, *q), p, *r)
 
-@verb
+@Verb
 def Tc(stack):
     stack, p, q = stack.pop(2)
     return stack.push(q, *p)
@@ -429,7 +440,7 @@ def Tc(stack):
 Cc = defverb([swap], dip, Ic)
 
 # Kc = defverb([pop], dip, Ic)
-@verb
+@Verb
 def Kc(stack):
     stack, p, q = stack.pop(2)
     return stack.push(*q)
@@ -437,37 +448,38 @@ def Kc(stack):
 Wc = defverb([dup], dip, Ic)
 
 
-@verb
+@Verb
 def Xc(stack):
     p = stack.peek()
     return stack.push(*p)
 
 
-@verb
+@Verb
 def dipd(stack):
     stack, x, y, p = stack.pop(3)
     return stack.push(*p).push(x, y)
 
 
-@verb
+@Verb
 def dipdd(stack):
     stack, x, y, z, p = stack.pop(4)
     return stack.push(*p).push(x, y, z)
 
 
-@verb
+@Verb
 def step(stack):
     stack, it, p = stack.pop(2)
     for a in it:
         stack.push(a).push(*p)
 
 
-@verb
+@Verb
 def nullary(stack):
     stack, p = stack.pop()
     return stack.push(stack.push(*p).peek())
 
-@verb
+
+@Verb
 def cleave(stack):
     stack, x, p, q = stack.pop(3)
     return stack.push(
@@ -475,7 +487,7 @@ def cleave(stack):
         stack.push(x, *q).peek())
 
 
-@verb
+@Verb
 def ifte(stack):
     """
     the if-then-else combinator
@@ -490,26 +502,26 @@ def ifte(stack):
     return stack.push(*(t if Stack(*b).peek() else e))
 
 
-@verb
+@Verb
 def times(stack):
     stack, n, p = stack.pop(2)
     for i in range(n):
         stack = stack.push(*p)
 
 
-@verb
+@Verb
 def infra(stack):
     stack, a, p = stack.pop(2)
     return stack.push(Stack(*reversed(a)).push(*p))
 
 
-@verb
+@Verb
 def subspace(stack):
     stack, a, p = stack.pop(2)
     return stack.push(Stack(*a).push(*p))
 
 
-def Def(*words):
+class Def:
     """
     Define a Python function from stack words.
     >>> from operator import mul
@@ -518,8 +530,24 @@ def Def(*words):
     49
     >>> square(4)
     16
+    >>> square
+    Def(dup, op(mul))
     """
-    return lambda *args: Stack(*args).push(*words).peek()
+    def __init__(self, *words, minargs=None, maxargs=None):
+        self.words, self.min, self.max = words, minargs, maxargs
+
+    def __call__(self, *args):
+        if self.min is not None and len(args) < self.min:
+            raise TypeError("{0}() missing {1} required positional arguments",
+                            repr(self), self.min-len(args))
+        if self.max is not None and len(args) > self.max:
+            raise TypeError(
+                "{0}() takes {1} positional arguments, but {2} were given",
+                repr(self), self.max, len(args))
+        return Stack(*args).push(*self.words).peek()
+
+    def __repr__(self):
+        return "Def"+repr(tuple(self.words))
 
 
 if __name__ == "__main__": import doctest; doctest.testmod()
