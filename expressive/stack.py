@@ -204,9 +204,12 @@ def op(func, depth=2):
     """
     class OpVerb(Verb):
         def __repr__(self):
+            name = func.__name__
+            if func.__name__.startswith('<'):
+                name = repr(func)
             if depth == 2:
-                return "op(%s)" % func.__name__
-            return "op({0}, {1})".format(func.__name, depth)
+                return "op(%s)" % name
+            return "op({0}, {1})".format(name, depth)
 
     @OpVerb
     def op_verb(stack):
@@ -534,16 +537,16 @@ class Def:
     Def(dup, op(mul))
     """
     def __init__(self, *words, minargs=None, maxargs=None):
-        self.words, self.min, self.max = words, minargs, maxargs
+        self.words, self.min_args, self.max_args = words, minargs, maxargs
 
     def __call__(self, *args):
-        if self.min is not None and len(args) < self.min:
+        if self.min_args is not None and len(args) < self.min_args:
             raise TypeError("{0}() missing {1} required positional arguments",
-                            repr(self), self.min-len(args))
-        if self.max is not None and len(args) > self.max:
+                            repr(self), self.min_args-len(args))
+        if self.max_args is not None and len(args) > self.max_args:
             raise TypeError(
                 "{0}() takes {1} positional arguments, but {2} were given",
-                repr(self), self.max, len(args))
+                repr(self), self.max_args, len(args))
         return Stack(*args).push(*self.words).peek()
 
     def __repr__(self):
