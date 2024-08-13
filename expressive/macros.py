@@ -19,8 +19,8 @@
 from _collections_abc import Mapping
 from core import partition
 
-from expressive.sexpression import S, Quote
-from expressive.statement import Elif, progn
+from sexpression import S, Quote
+from statement import Elif, progn
 
 
 def macro(func):
@@ -102,7 +102,7 @@ def Lx(symbols, *body, Nonlocals=None):
     >>> S(plus,20,4).eval()
     24
     """
-    return Lambda(symbols, S(progn,body), Nonlocals)
+    return Lambda(symbols, S(progn, *body), Nonlocals)
 
 class SetQ:
     def __init__(self, pairs):
@@ -168,25 +168,6 @@ def IF(Boolean, Then, Else=None):
                S(bool,
                  Boolean)))
 
-@macro
-def IF2(boolean, then, Else=None):
-    """
-    >>> from operator import add, sub
-    >>> S(IF2,S(sub,1,1),S(print,'then')).eval()
-    >>> S(IF2,S(add,1,1),S(print,'then')).eval()
-    then
-    >>> S(IF2,S(add,1,1),S(print,'then'),S(print,'else')).eval()
-    then
-    >>> S(IF2,S(sub,1,1),S(print,'then'),S(print,'else')).eval()
-    else
-    """
-    return S(Elif,
-             S(THUNK,
-               boolean),
-             S(THUNK,
-               then),
-             Else=S(THUNK,
-                    Else))
 
 @macro
 def EVAL(body):
@@ -302,31 +283,3 @@ THREAD_TAIL = None
 THREAD, THREAD_TAIL = _private()
 del _private
 
-if __name__ == "__main__": import doctest; doctest.testmod()
-
-## performance tests; scratch -- delete
-# from time import time
-# def timeif(n):
-#     acc = 0
-#     for x in range(n):
-#         start = time()
-#         S(IF,True,1)
-#         runtime = time()-start
-#         acc+=runtime
-#     return acc
-# def timeif2(n):
-#     acc = 0
-#     for x in range(n):
-#         start = time()
-#         S(IF2,True,1)
-#         runtime = time()-start
-#         acc+=runtime
-#     return acc
-# def timenativeif(n):
-#     acc = 0
-#     for x in range(n):
-#         start = time()
-#         1 if True else None
-#         runtime = time()-start
-#         acc+=runtime
-#     return acc

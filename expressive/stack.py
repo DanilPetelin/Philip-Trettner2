@@ -18,7 +18,7 @@ Stack-based combinator algebra for Python.
 
 from functools import lru_cache
 from itertools import permutations
-from expressive.core import Tuple, List
+from core import Tuple, List
 from collections import deque, Mapping
 
 
@@ -551,7 +551,4 @@ class Def:
 
     def __repr__(self):
         return "Def"+repr(tuple(self.words))
-
-
-if __name__ == "__main__": import doctest; doctest.testmod()
 

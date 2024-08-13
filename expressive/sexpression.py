@@ -56,7 +56,7 @@ class SExpression:
     These are given any nested S objects unevaluated, and return a
     new S object to be evaluated; rewriting code before it's
     executed.
-    >>> from expressive.macros import IF
+    >>> from macros import IF
     >>> S(IF, True, S(print,'yes'), S(print,'no')).eval()
     yes
     >>> S(IF, False, S(print,'yes'), S(print,'no')).eval()
@@ -257,4 +257,3 @@ del _private
 #     return eval('lambda %s:body'%arg)
 
 # TODO: doctests
-if __name__ == "__main__": import doctest; doctest.testmod()

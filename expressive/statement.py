@@ -96,11 +96,8 @@ def Assert(boolean):
     AssertionError
 
     Unlike naked assert statements,
-    Assert is allowed anywhere expressions are.
-    But as an expression returning a value, it
-    cannot simply be removed. Add the line
-      Assert = None
-    at the top of your file to turn off Assert.
+    Assert() is allowed anywhere expressions are.
+    When assert is disabled, Assert() simply returns None.
     """
     assert boolean
 
@@ -301,11 +298,11 @@ def _private():
         positional arg, which makes For behave more like `for`.
 
         With normal unpacking
-        >>> For({'a':'A'}.items(), lambda k, v:
+        >>> For({'key':'value'}.items(), lambda k, v:
         ...         (print(k),
         ...          print(v)))
-        a
-        A
+        key
+        value
         
         Without unpacking for a 1-arg func
         >>> For({'a':'A'}.items(), lambda pair:
@@ -366,16 +363,53 @@ For = _private()
 del _private
 
 
-# TODO: doctest python3 relative imports?
 def _private():
     from importlib import import_module
+    from core import Tuple
 
     # noinspection PyPep8Naming,PyShadowingNames
-    def Import(item, package=None, *, From=None):
+    def Import(item, *items, package=None, From=None):
+        """
+        convenience function wrapping importlib.import_module()
+
+        # from operator import sub, mul
+        >>> sub, mul = Import('sub', 'mul', From='operator')
+        >>> sub(1,3)
+        -2
+        >>> mul(2,3)
+        6
+        >>> operator = Import('operator')  # import operator
+        >>> operator.add(1, 1)
+        2
+        >>> abc = Import('collections.abc')  # import collections.abc as abc
+        >>> hasattr(abc,'Set')
+        True
+
+        # from collections.abc import Set
+        >>> Set = Import('Set', From='collections.abc')
+        >>> Set == abc.Set
+        True
+
+        # from .stack import Stack, op
+        >>> Stack, op = Import('Stack', 'op', From='.stack', package='expressive')
+        >>> Stack(1,2,op(sub)).peek()
+        -1
+        """
+        if items:
+            items = Tuple(item, *items)
+        if package:
+            import_module(package)
         if From:
-            return getattr(import_module(From, package), item)
+            module = import_module(From, package)
+            if items:
+                return (getattr(module, item) for item in items)
+            else:
+                return getattr(module, item)
         else:
-            return import_module(item, package)
+            if items:
+                return (import_module(item, package) for item in items)
+            else:
+                return import_module(item, package)
 
     return Import
 
@@ -633,7 +667,4 @@ def progn(*body):
     42
     """
     return body[-1]
-
-
-if __name__ == "__main__": import doctest; doctest.testmod()
 

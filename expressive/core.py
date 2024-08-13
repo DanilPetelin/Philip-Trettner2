@@ -109,6 +109,3 @@ def apply(func, *params,  arkwarg):
 def unzip(iterable):
     """ transpose the iterable. """
     return zip(*iterable)
-
-
-if __name__ == "__main__": import doctest; doctest.testmod()
