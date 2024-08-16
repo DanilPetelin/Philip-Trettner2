@@ -56,8 +56,7 @@ class SExpression:
 
     .eval() treats functions with the @macro decorator specially.
     These are given any nested S objects unevaluated, and return a
-    new S object to be evaluated; rewriting code before it's
-    executed.
+    new object to be evaluated.
     >>> from macros import IF
     >>> S(IF, True, S(print,'yes'), S(print,'no')).eval()
     yes
@@ -82,8 +81,8 @@ class SExpression:
       'test')]
 
     This does, since it uses another S-expression to make the list.
-    >>> make_list = lambda *xs: list(xs)
-    >>> S(identity,S(make_list,S(print,'test'))).eval()
+    >>> from core import List
+    >>> S(identity,S(List,S(print,'test'))).eval()
     test
     [None]
 
@@ -151,6 +150,7 @@ def _private():
 
     _keyword_set = set(_keyword_set)
 
+
     # noinspection PyShadowingNames
     class SymbolType(UserString, str):
         """
@@ -173,7 +173,7 @@ def _private():
         >>> withsymbol.eval(globals())
         1
         >>> spam = 2
-        >>> nosymbol.eval()  # doesn't change
+        >>> nosymbol.eval(globals())  # doesn't change
         1
         >>> withsymbol.eval(globals())
         2
@@ -203,7 +203,7 @@ def _private():
                 return 'SymbolType(%s)' % repr(self.data)
             return 'S.' + self.data
 
-        def eval(self, scope={}):
+        def eval(self, scope={}):  # default {} cannot be mutated
             """ looks up itself in scope """
             try:
                 return scope[self]
@@ -215,10 +215,18 @@ def _private():
                 'Symbol %s is not bound in the given scope' % repr(self)
             ) from ex
 
-    return SymbolType
+    _gensym_counter = 0
 
+    def gensym(prefix=''):
+        nonlocal _gensym_counter
+        _gensym_counter +=1
+        return SymbolType('#:{0}${1}'.format(prefix, str(_gensym_counter)))
 
-SymbolType = _private()
+    return SymbolType, gensym
+
+SymbolType = None
+gensym = None
+SymbolType, gensym = _private()
 del _private
 
 

@@ -12,32 +12,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#TODO: docstring module
+#TODO: docstring core.py module
 
 # Other modules in this package may require core.
 # To avoid circular dependencies, core.py shall not depend on any other modules in this package.
 
 def Tuple(*args):
-    """ returns args as a tuple """
+    """
+    returns args as a tuple
+    >>> Tuple(1,2,3)
+    (1, 2, 3)
+    """
     return args
 
 
 def List(*args):
-    """ returns args as a list """
+    """
+    returns args as a list
+    >>> List(1,2,3)
+    [1, 2, 3]
+    """
     return list(args)
 
 
 def Set(*args):
-    """ returns args as a set """
+    """
+    returns args as a set
+    >>> Set(1,2,3) == {1,2,3}
+    True
+    """
     return set(args)
 
 
 def Dict(*args):
-    """ pairs args and makes a dictionary with them
+    """
+    pairs args and makes a dictionary with them
     >>> Dict(1,2)
     {1: 2}
     >>> Dict(1,2,  3,4,  5,6)[3]
     4
+    >>> Dict(1,2,
+    ...      3,4,) == {1: 2, 3: 4}
+    True
     """
     return dict(partition(args))
 
