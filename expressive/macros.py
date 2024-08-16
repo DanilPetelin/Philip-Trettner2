@@ -12,25 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# TODO: docstring macros.py
 
-"""
-
-"""
 from _collections_abc import Mapping
 from core import partition
 
-from sexpression import S, Quote
+from sexpression import S, Quote, macro
 from statement import Elif, progn
 
 
-def macro(func):
-    """
-    Marks the func as a macro.
-    In S-expressions, macros are given any S-expressions
-    unevaluated, then the result is evaluated.
-    """
-    func.__macro__ = None
-    return func
+# macros.py depends on core.py, sexpression.py, and statement.py
+# macros.py does not currently require stack.py
 
 class Scope(Mapping):
     def __len__(self):

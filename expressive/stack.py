@@ -21,28 +21,21 @@ from itertools import permutations
 from core import Tuple, List
 from collections import deque, Mapping
 
+# To avoid circular dependencies in this package,
+# stack.py shall depend only on the core.py and statement.py modules.
+# statement.py is not required in the current version.
 
 class Stack:
     """
     Stack is an executable data structure for metaprogramming.
 
-    Pushing a special type of function, called verb, onto a
-    Stack applies the verb to nouns from the stack.
-
-    Non-verb elements are considered nouns.
-
-    Functions that return a verb (like op) are considered adjectives.
-    Adjectives can create or decorate verbs.
-
-    A list containing verbs is still a noun. This is a kind of
-    quoted program.
-
-    Verbs that consume quoted programs are called combinators.
+    Pushing a special type of function, called a combinator, onto a
+    Stack applies the combinator to elements from the stack.
     """
     def __init__(self, *args, rest=None):
         self.head = rest
         for w in args:
-            if isinstance(w, Verb):
+            if isinstance(w, Combinator):
                 self.head = w(self).head
             else:
                 self.head = (self.head, w)
@@ -167,11 +160,16 @@ class Stack:
 
 
 # ###
-# adjectives
+# Combinator constructors
 # ###
 
-class Verb:
-    """Marks func as a verb. Verbs act on nouns in a Stack."""
+class Combinator:
+    """
+    Marks func as a combinator. Combinators act on a Stack, and return a Stack.
+
+    A list containing combinators is not itself a combinator, but a kind of
+    quoted program. Some combinators consume these quoted programs.
+    """
     def __init__(self, func):
         self.func = func
 
@@ -185,7 +183,7 @@ class Verb:
 @lru_cache()  # memoized
 def op(func, depth=2):
     """
-    converts a binary Python function into a verb
+    converts a binary Python function into a combinator
     >>> from operator import add, mul
     >>> Stack(2, 3, op(add))
     Stack(5,)
@@ -202,7 +200,7 @@ def op(func, depth=2):
     >>> Stack(1,2,3,op(Tuple))
     Stack(1, (2, 3))
     """
-    class OpVerb(Verb):
+    class OpCombinator(Combinator):
         def __repr__(self):
             name = func.__name__
             if func.__name__.startswith('<'):
@@ -211,32 +209,32 @@ def op(func, depth=2):
                 return "op(%s)" % name
             return "op({0}, {1})".format(name, depth)
 
-    @OpVerb
-    def op_verb(stack):
+    @OpCombinator
+    def op_combinator(stack):
         stack, *args = stack.pop(depth)
         return stack.push(func(*args))
-    return op_verb
+    return op_combinator
 
 
 def op1(func):
-    """ short for op(func, 1). Unary Python function to verb"""
+    """ short for op(func, 1). Unary Python function to combinator"""
     return op(func, 1)
 
 
-def defverb(*args):
-    """ Creates a new verb that pushes the given arguments on the stack. """
-    @Verb
+def defcombinator(*args):
+    """ Creates a new combinator from a composition of other combinators."""
+    @Combinator
     def phrase(stack):
         return stack.push(*args)
     return phrase
 
 
 # ##
-# Stack manipulation verbs
+# Stack manipulation combinators
 # ##
 
 
-@Verb
+@Combinator
 def pop(stack):
     """
     discards the top of the stack
@@ -247,7 +245,7 @@ def pop(stack):
     return stack
 
 
-@Verb
+@Combinator
 def dup(stack):
     """
     duplicates the top of the stack
@@ -257,13 +255,13 @@ def dup(stack):
     return stack.push(stack.peek())
 
 
-@Verb
+@Combinator
 def nop(stack):
     """ no-operation. Returns stack unchanged. """
     return stack
 
 
-@Verb
+@Combinator
 def swap(stack):
     """
     swaps the top two elements of the stack
@@ -280,7 +278,7 @@ for _cs in permutations('abc'):
         # acb is swap
         continue
     exec('''
-@Verb
+@Combinator
 def {0}(stack):
     """
     permutes the top three elements of the stack,
@@ -299,7 +297,7 @@ for _cs in permutations('abcd'):
     if _cs[0] == 'a':
         continue  # depth < 4; already defined above
     exec('''
-@Verb
+@Combinator
 def {0}(stack):
     """
     permutes the top four elements of the stack,
@@ -313,8 +311,8 @@ def {0}(stack):
 del _cs
 
 
-# popd = defverb((pop,), dip)
-@Verb
+# popd = defcombinator((pop,), dip)
+@Combinator
 def popd(stack):
     """
     pops one deeper
@@ -325,8 +323,8 @@ def popd(stack):
     return stack.push(b)
 
 
-# dupd = defverb((dup,), dip)
-@Verb
+# dupd = defcombinator((dup,), dip)
+@Combinator
 def dupd(stack):
     """
     duplicates one deeper
@@ -338,11 +336,11 @@ def dupd(stack):
 
 
 # ##
-# Operator verbs
+# Operator combinators
 # ##
 
 
-@Verb
+@Combinator
 def quote(stack):
     """
     wraps the top n elements in a list
@@ -354,17 +352,17 @@ def quote(stack):
     return stack.push(args)
 
 
-@Verb
+@Combinator
 def choice(stack):
     stack, b, t, f = stack.pop(3)
     return stack.push(t if b else f)
 
 
 # ##
-# Combinators
+# Quotation Combinators
 # ##
 
-@Verb
+@Combinator
 def do(stack):
     """
     The do combinator applies an ordinary Python function to a
@@ -393,23 +391,23 @@ def do(stack):
     return stack.push(func(*kwargs))  # kwargs was just args
 
 
-@Verb
+@Combinator
 def dip(stack):
     stack, x, p = stack.pop(2)
     return stack.push(*p).push(x)
 
 
-@Verb
+@Combinator
 def cons(stack):
     stack, p, q = stack.pop(2)
     return stack.push(List(p, *q))
 
-@Verb
+@Combinator
 def take(stack):
     stack, p, q = stack.pop(2)
     return stack.push(list(p)+[q])
 
-@Verb
+@Combinator
 def Ic(stack):
     """
     the I combinator. Unquotes the iterable by pushing its elements.
@@ -420,69 +418,69 @@ def Ic(stack):
     stack, x = stack.pop()
     return stack.push(*x)
 
-@Verb
+@Combinator
 def Jc(stack):
     stack, p, q, r, s = stack.pop(4)
     return stack.push(q, p, *s).push(r, *s)
 
-@Verb
+@Combinator
 def Bc(stack):
     stack, p, q = stack.pop()
     return stack.push(*p).push(*q)
 
-@Verb
+@Combinator
 def Sc(stack):
     stack, p, q, r = stack.pop(3)
     return stack.push(List(p, *q), p, *r)
 
-@Verb
+@Combinator
 def Tc(stack):
     stack, p, q = stack.pop(2)
     return stack.push(q, *p)
 
-Cc = defverb([swap], dip, Ic)
+Cc = defcombinator([swap], dip, Ic)
 
-# Kc = defverb([pop], dip, Ic)
-@Verb
+# Kc = defcombinator([pop], dip, Ic)
+@Combinator
 def Kc(stack):
     stack, p, q = stack.pop(2)
     return stack.push(*q)
 
-Wc = defverb([dup], dip, Ic)
+Wc = defcombinator([dup], dip, Ic)
 
 
-@Verb
+@Combinator
 def Xc(stack):
     p = stack.peek()
     return stack.push(*p)
 
 
-@Verb
+@Combinator
 def dipd(stack):
     stack, x, y, p = stack.pop(3)
     return stack.push(*p).push(x, y)
 
 
-@Verb
+@Combinator
 def dipdd(stack):
     stack, x, y, z, p = stack.pop(4)
     return stack.push(*p).push(x, y, z)
 
 
-@Verb
+@Combinator
 def step(stack):
     stack, it, p = stack.pop(2)
     for a in it:
         stack.push(a).push(*p)
 
 
-@Verb
+@Combinator
 def nullary(stack):
     stack, p = stack.pop()
     return stack.push(stack.push(*p).peek())
 
 
-@Verb
+@Combinator
 def cleave(stack):
     stack, x, p, q = stack.pop(3)
     return stack.push(
@@ -490,7 +488,7 @@ def cleave(stack):
         stack.push(x, *q).peek())
 
 
-@Verb
+@Combinator
 def ifte(stack):
     """
     the if-then-else combinator
@@ -505,20 +503,20 @@ def ifte(stack):
     return stack.push(*(t if Stack(*b).peek() else e))
 
 
-@Verb
+@Combinator
 def times(stack):
     stack, n, p = stack.pop(2)
     for i in range(n):
         stack = stack.push(*p)
 
 
-@Verb
+@Combinator
 def infra(stack):
     stack, a, p = stack.pop(2)
     return stack.push(Stack(*reversed(a)).push(*p))
 
 
-@Verb
+@Combinator
 def subspace(stack):
     stack, a, p = stack.pop(2)
     return stack.push(Stack(*a).push(*p))

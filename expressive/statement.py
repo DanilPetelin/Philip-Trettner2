@@ -61,6 +61,8 @@ Multiple exits are available via let/progn/Return()
 See stack.Def and macros.Lx for two alternative `def` substitutes.
 """
 
+# To avoid circular dependencies in this package,
+# statement.py shall depend only on the core.py module
 
 def _private():
     class PassType:
@@ -365,7 +367,7 @@ del _private
 
 def _private():
     from importlib import import_module
-    from core import Tuple
+    from .core import Tuple
 
     # noinspection PyPep8Naming,PyShadowingNames
     def Import(item, *items, package=None, From=None):
@@ -432,23 +434,59 @@ def Raise(ex, From=None):
         raise ex from From
     raise ex
 
-# TODO: doctest Try
-# noinspection PyPep8Naming
-def Try(thunk, *Except, Else=None, Finally=Pass):
-    try:
-        res = thunk()
-    except BaseException as ex:
-        for k in Except:
-            if(isinstance(ex,k)):
-                return Except[k](ex)
+def _private():
+    from core import partition
+
+    # TODO: doctest Try
+    # noinspection PyPep8Naming,PyShadowingNames
+    def Try(thunk, *Except, Else=None, Finally=Pass):
+        """
+        >>> Try(lambda: 1+1)
+        2
+        >>> Try(lambda:
+        ...         1/0,
+        ...     ZeroDivisionError, lambda zdr: progn(
+        ...         print(zdr),
+        ...         'returns: take a limit!',),
+        ...     Finally=lambda:
+        ...         print('finally!'),
+        ...     Else=lambda:
+        ...         print('returns: or else!'))
+        division by zero
+        finally!
+        'returns: take a limit!'
+        >>> Try(lambda:
+        ...         0/1,
+        ...     ZeroDivisionError, lambda zdr: progn(
+        ...         print(zdr),
+        ...         'take a limit!',),
+        ...     Finally=lambda:
+        ...         print('finally!'),
+        ...     Else=lambda:
+        ...         'returns: or else!')
+        finally!
+        'returns: or else!'
+        """
+        assert len(Except) % 2 == 0
+        try:
+            res = thunk()
+        except BaseException as ex:
+            for ex_type, ex_handler in partition(Except):
+                if isinstance(ex, ex_type):
+                    return ex_handler(ex)
+            else:
+                raise ex
         else:
-            raise ex
-    else:
-        if Else:
-            res = Else()
-    finally:
-        Finally()
-    return res
+            if Else:
+                res = Else()
+        finally:
+            Finally()
+        return res
+    return Try
+
+Try = None
+Try = _private()
+del _private
 
 # TODO: doctest While, labeled/unlabeled break/continue
 # noinspection PyPep8Naming

@@ -20,6 +20,8 @@ Usage:
 from expression.sexpression import S
 """
 
+# sexpression.py does not depend on other modules in this package
+# future versions may safely depend on core.py and statement.py
 
 class SExpression:
     """
@@ -233,6 +235,17 @@ def _private():
 
 S = _private()
 del _private
+
+
+# defines an interface used by SExpression, so belongs here, not in macros.py
+def macro(func):
+    """
+    Marks the func as a macro.
+    In S-expressions, macros are given any S-expressions
+    unevaluated, then the result is evaluated.
+    """
+    func.__macro__ = None
+    return func
 
 
 # def GENX(func,iterable,predicate):
