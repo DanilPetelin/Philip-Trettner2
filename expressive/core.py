@@ -59,17 +59,33 @@ def Dict(*args):
 
 
 class Namespace:
-    """ An empty object for containing attrs. """
+    """
+    An "empty" object for containing attrs.
+    Not completely empty since it inherits from object
+    >>> spam = Namespace(foo=1)
+    >>> spam
+    Namespace(foo=1)
+    >>> spam.foo
+    1
+    >>> spam.bar = 2
+    >>> spam.bar
+    2
+    """
     def __init__(self,**kwargs):
         self.__dict__ = kwargs
 
+    def __repr__(self):
+        return 'Namespace({0})'.format(
+            ', '.join('{0}={1}'.format(k, repr(v))
+                      for k, v in self.__dict__.items()))
 
-prog1 = lambda *body: body[0]
-prog1.__doc__ = '''\
-returns the first argument.
->>> prog1(1,1+1,1+1+1)
-1
-'''
+
+# prog1 = lambda *body: body[0]
+# prog1.__doc__ = '''\
+# returns the first argument.
+# >>> prog1(1,1+1,1+1+1)
+# 1
+# '''
 
 
 def _private():
@@ -112,6 +128,16 @@ partition = _private()
 del _private
 
 
+def identity(x):
+    """
+    The identity function. Returns is argument.
+    not to be confused with the id() builtin
+    >>> identity('foo')
+    'foo'
+    """
+    return x
+
+
 def akw(*args, **kwargs):
     return args, kwargs
 
@@ -122,6 +148,10 @@ def apply(func, *params,  arkwarg):
     return func(*(params+args), **kwargs)
 
 
-def unzip(iterable):
-    """ transpose the iterable. """
-    return zip(*iterable)
+# def unzip(iterable):
+#     """
+#     transpose the iterable.
+#     >>> list(unzip([(1, 2), (3, 4)]))
+#     [(1, 3), (2, 4)]
+#     """
+#     return zip(*iterable)

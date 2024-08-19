@@ -14,14 +14,16 @@
 
 
 """
-S-expression for Python, with macro support.
+S-expression for Python, with symbol and macro support.
 
-Usage:
+Module usage:
 from expression.sexpression import S
 """
 
 # sexpression.py does not depend on other modules in this package
 # future versions may safely depend on core.py and statement.py
+from threading import Lock
+
 
 class SExpression:
     """
@@ -54,10 +56,31 @@ class SExpression:
     >>> S(print,1,2,3,sep='::').eval()
     1::2::3
 
+    Important: .eval() will not peek into other data structures to evaluate
+    nested S objects. You must evaluate them explicitly, or use
+    an S expression to create the data structure.
+
+    This doesn't print 'test'.
+    >>> identity = lambda x: x
+    >>> S(identity,[S(print,'test')]).eval()
+    [S(<built-in function print>,
+      'test')]
+
+    This does, since it uses another S-expression to make the list.
+    >>> from expressive.core import List
+    >>> S(identity,S(List,S(print,'test'))).eval()
+    test
+    [None]
+
+    Explicit evaluation also works.
+    >>> S(identity,[S(print,'test').eval()]).eval()
+    test
+    [None]
+
     .eval() treats functions with the @macro decorator specially.
     These are given any nested S objects unevaluated, and return a
     new object to be evaluated.
-    >>> from macros import IF
+    >>> from expressive.macros import IF
     >>> S(IF, True, S(print,'yes'), S(print,'no')).eval()
     yes
     >>> S(IF, False, S(print,'yes'), S(print,'no')).eval()
@@ -69,27 +92,6 @@ class SExpression:
     ...   True, S(print,'yes'), S(print,'no')).eval()
     yes
     no
-
-    .eval() will not peek into other data structures to evaluate
-    nested S objects. You must evaluate them explicitly, or use
-    an S expression to create the data structure.
-
-    This doesn't print 'test'.
-    >>> identity = lambda x: x
-    >>> S(identity,[S(print,'test')]).eval()
-    [S(<built-in function print>,
-      'test')]
-
-    This does, since it uses another S-expression to make the list.
-    >>> from core import List
-    >>> S(identity,S(List,S(print,'test'))).eval()
-    test
-    [None]
-
-    Explicit evaluation also works.
-    >>> S(identity,[S(print,'test').eval()]).eval()
-    test
-    [None]
 
     """
 
@@ -214,24 +216,69 @@ def _private():
             raise SymbolError(
                 'Symbol %s is not bound in the given scope' % repr(self)
             ) from ex
+    return SymbolType
 
-    _gensym_counter = 0
+SymbolType = _private()
+del _private
+
+
+def _private():
+    _gensym_counter = 1
+    _gensym_lock = Lock()
 
     def gensym(prefix=''):
+        """
+        generates a unique Symbol. Gensyms are not valid identifiers,
+        but they are valid dictionary keys.
+
+        A gensym is only unique per import of this module, when the
+        gensym counter is initialized. It should not be relied upon for
+        uniqueness across a network, nor in serialized persistent storage.
+        gensym() locks the counter update for thread safety.
+
+        Python normally only imports a module once and caches the
+        result for any further import attempts, but this can be
+        circumvented.
+
+        gensyms are typically used by macros to avoid conflicts
+        with other symbols in the environment.
+
+        gensyms have an optional prefix for improved error messages
+        and macro debugging. The suffix is the gensym count at creation.
+
+        >>> gensym()
+        SymbolType('#:$1')
+        >>> gensym(S.foo)  # foo prefix
+        SymbolType('#:foo$2')
+        >>> gensym(S.foo)  # not the same symbol as above
+        SymbolType('#:foo$3')
+        >>> gensym('foo')  # strings also work.
+        SymbolType('#:foo$4')
+        """
         nonlocal _gensym_counter
-        _gensym_counter +=1
-        return SymbolType('#:{0}${1}'.format(prefix, str(_gensym_counter)))
+        with _gensym_lock:
+            # Threading with primitive locks is generally a bad idea.
+            # since race conditions are impossible to test properly.
+            # The only testing alternative is mathematical proof.
+            # Best keep this block as simple as possible.
+            # I wish itertools.count was documented as thread safe,
+            # but I'm not confident it is across implementations.
+            count = _gensym_counter
+            _gensym_counter = count + 1
+        return SymbolType('#:{0}${1}'.format(prefix, str(count)))
 
-    return SymbolType, gensym
+    return gensym
 
-SymbolType = None
-gensym = None
-SymbolType, gensym = _private()
+gensym = _private()
 del _private
 
 
 def _private():
     class S_Syntax:
+        """
+        prefix for creating S-expressions and Symbols.
+        see help('expressive.sexpression') for further details.
+        """
         def __call__(self, func, *args, **kwargs):
             return SExpression(func, *args, **kwargs)
 

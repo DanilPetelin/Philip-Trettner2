@@ -367,7 +367,7 @@ del _private
 
 def _private():
     from importlib import import_module
-    from .core import Tuple
+    from expressive.core import Tuple
 
     # noinspection PyPep8Naming,PyShadowingNames
     def Import(item, *items, package=None, From=None):
@@ -435,16 +435,20 @@ def Raise(ex, From=None):
     raise ex
 
 def _private():
-    from core import partition
+    from expressive.core import partition
 
-    # TODO: doctest Try
     # noinspection PyPep8Naming,PyShadowingNames
     def Try(thunk, *Except, Else=None, Finally=Pass):
         """
+        Try() returns the thunk's result normally
         >>> Try(lambda: 1+1)
         2
+
+        Try() returns the exception handler's result on exceptions.
+        This overrides both the normal thunk and else part's result.
+        Else is not evaluated after exceptions.
         >>> Try(lambda:
-        ...         1/0,
+        ...         1/0,  # error
         ...     ZeroDivisionError, lambda zdr: progn(
         ...         print(zdr),
         ...         'returns: take a limit!',),
@@ -455,8 +459,10 @@ def _private():
         division by zero
         finally!
         'returns: take a limit!'
+
+        Try() evaluates to the else part if provided.
         >>> Try(lambda:
-        ...         0/1,
+        ...         0/1,  # allowed
         ...     ZeroDivisionError, lambda zdr: progn(
         ...         print(zdr),
         ...         'take a limit!',),
@@ -466,6 +472,26 @@ def _private():
         ...         'returns: or else!')
         finally!
         'returns: or else!'
+
+        Try() never returns the result of Finally(), which is only
+        for side effects.
+
+        Multiple exception handlers are allowed. They're checked
+        in order.
+        >>> Try(lambda:
+        ...         1/0,
+        ...     ZeroDivisionError, lambda zdr:
+        ...         print('by ZeroDivisionError'),
+        ...     Exception, lambda x:
+        ...         print('by Exception'),)
+        by ZeroDivisionError
+        >>> Try(lambda:
+        ...         1/0,
+        ...     Exception, lambda x:
+        ...         print('by Exception'),
+        ...     ZeroDivisionError, lambda zdr:
+        ...         print('by ZeroDivisionError'),)
+        by Exception
         """
         assert len(Except) % 2 == 0
         try:
@@ -484,7 +510,6 @@ def _private():
         return res
     return Try
 
-Try = None
 Try = _private()
 del _private
 
