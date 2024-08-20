@@ -64,6 +64,7 @@ See stack.Def and macros.Lx for two alternative `def` substitutes.
 # To avoid circular dependencies in this package,
 # statement.py shall depend only on the core.py module
 
+
 def _private():
     class PassType:
         """
@@ -338,6 +339,7 @@ def _private():
         1
         not found
         """
+        assert callable(Else)
         params = signature(func).parameters
         try:
             # check for 1-arg positional func
@@ -444,6 +446,9 @@ def _private():
         >>> Try(lambda: 1+1)
         2
 
+        Exception handlers are written as an exception type paired with
+        a function. The exception handlers are required to take an
+        argument, but they are not required to use it.
         Try() returns the exception handler's result on exceptions.
         This overrides both the normal thunk and else part's result.
         Else is not evaluated after exceptions.
@@ -492,8 +497,12 @@ def _private():
         ...     ZeroDivisionError, lambda zdr:
         ...         print('by ZeroDivisionError'),)
         by Exception
+
+        to catch any exception, like the final `except:`, use BaseException.
         """
         assert len(Except) % 2 == 0
+        assert all(issubclass(x, BaseException) and callable(c)
+                   for x, c in partition(Except))
         try:
             res = thunk()
         except BaseException as ex:
@@ -519,20 +528,20 @@ def While(predicate, thunk, label=None, *, Else=Pass):
     """
     >>> from operator import add
     >>> spam = Var(4)
-    >>> While(lambda:spam.e,lambda:print(spam.assign(-1,add)))
-    Var(3)
-    Var(2)
-    Var(1)
-    Var(0)
-    >>> spam.assign(1)
-    Var(1)
+    >>> While(lambda:spam.e,lambda:print(spam.set(-1,add)))
+    3
+    2
+    1
+    0
+    >>> spam.set(1)
+    1
     >>> While(lambda: spam.e,
-    ...   lambda: print(spam.assign(-1,add)),
+    ...   lambda: print(spam.set(-1,add)),
     ...   Else=lambda: print('done'))
-    Var(0)
+    0
     done
     >>> While(lambda: True,
-    ...   lambda: print(spam.assign(1,add).e) if spam.e < 2 else Break(),
+    ...   lambda: print(spam.set(1,add)) if spam.e < 2 else Break(),
     ...   Else=lambda: print('not possible'))
     1
     2
@@ -552,33 +561,68 @@ def While(predicate, thunk, label=None, *, Else=Pass):
 
 
 class Var:
-    """ a boxed mutable variable, which can be assigned to inside expressions. """
+    """
+    a boxed mutable variable, which can be assigned to inside
+    expressions.
+    >>> spam = Var('eggs')  # initial value (required)
+    >>> spam
+    Var('eggs')
 
+    unbox with .e (element) attr
+    >>> spam.e
+    'eggs'
+
+    can assign using .set(), either directly or by modifying current
+    value with an operator
+    >>> from operator import sub
+    >>> spam.set(44)
+    44
+    >>> spam.set(2, sub)  # actually any binary callable will work
+    42
+    >>> spam.set('eggs')
+    'eggs'
+    >>> spam.e
+    'eggs'
+    """
     def __init__(self, e):
-        """
-        >>> spam = Var('eggs')
-        >>> spam
-        Var('eggs')
-        >>> spam.e
-        'eggs'
-        """
-        self.e = e
 
-    def assign(self, e, oper=None):
-        """
-        sets Var's element. Optionally augment assignments with oper.
-        >>> from operator import add
-        >>> spam = Var(40)
-        >>> spam.assign(2, add)
-        Var(42)
-        >>> spam.assign('eggs')
-        Var('eggs')
-        """
-        if oper:
-            self.e = oper(self.e, e)
-        else:
-            self.e = e
-        return self
+        from threading import Lock
+        lock = Lock()
+
+        def set(new, oper=None):
+            """
+            sets Var's element. Optionally augment assignments with oper.
+            set() is locked for thread safety, however direct access to
+            .e is not locked, so foo.set(1, operator.add) is a thread-
+            safe increment, but foo.set(foo.e + 1) is not.
+            The return value is set inside the lock, to make it
+            consistent with the update.
+            """
+            # Threading with primitive locks is generally a bad idea.
+            # since race conditions are impossible to test properly.
+            # The only testing alternative is mathematical proof.
+            # Best keep this block as simple as possible.
+            # Var is a useful alternative to primitive locks
+            # in many cases.
+            nonlocal e
+            with lock:
+                if oper:
+                    e = oper(e, new)
+                else:
+                    e = new
+                res = e
+            return res
+
+        self.set = set
+        self._get = lambda: e  # readonly
+
+    @property
+    def e(self):
+        return self._get()
+
+    @e.setter
+    def e(self, new):
+        raise AttributeError("Use .set() to assign to a Var, not .e = ...")
 
     def __repr__(self):
         return 'Var(%s)' % repr(self.e)
@@ -682,7 +726,8 @@ def delitem(obj, index):
     return obj
 
 
-def let(body, *, args=(), kwargs={}, label=None):
+from types import MappingProxyType
+def let(body, *, args=(), kwargs=MappingProxyType({}), label=None):
     """
     immediately calls body.
     can catch a Return exception and returns its result.
@@ -709,6 +754,7 @@ def let(body, *, args=(), kwargs={}, label=None):
     except Return as r:
         r.handle(label)
         return r.result
+del MappingProxyType
 
 
 def progn(*body):

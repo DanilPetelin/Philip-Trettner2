@@ -15,9 +15,9 @@
 # TODO: docstring macros.py
 
 from _collections_abc import Mapping
-from .core import partition
-from .sexpression import S, Quote, macro
-from .statement import Elif, progn
+from core import partition
+from sexpression import S, Quote, macro
+from statement import Elif, progn
 
 
 # macros.py depends on core.py, sexpression.py, and statement.py

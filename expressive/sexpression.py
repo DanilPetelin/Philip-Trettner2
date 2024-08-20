@@ -22,7 +22,9 @@ from expression.sexpression import S
 
 # sexpression.py does not depend on other modules in this package
 # future versions may safely depend on core.py and statement.py
+from operator import add
 from threading import Lock
+from statement import Var
 
 
 class SExpression:
@@ -205,7 +207,9 @@ def _private():
                 return 'SymbolType(%s)' % repr(self.data)
             return 'S.' + self.data
 
-        def eval(self, scope={}):  # default {} cannot be mutated
+        from types import MappingProxyType
+
+        def eval(self, scope=MappingProxyType({})):
             """ looks up itself in scope """
             try:
                 return scope[self]
@@ -223,8 +227,7 @@ del _private
 
 
 def _private():
-    _gensym_counter = 1
-    _gensym_lock = Lock()
+    _gensym_counter = Var(0)
 
     def gensym(prefix=''):
         """
@@ -255,17 +258,9 @@ def _private():
         >>> gensym('foo')  # strings also work.
         SymbolType('#:foo$4')
         """
-        nonlocal _gensym_counter
-        with _gensym_lock:
-            # Threading with primitive locks is generally a bad idea.
-            # since race conditions are impossible to test properly.
-            # The only testing alternative is mathematical proof.
-            # Best keep this block as simple as possible.
-            # I wish itertools.count was documented as thread safe,
-            # but I'm not confident it is across implementations.
-            count = _gensym_counter
-            _gensym_counter = count + 1
-        return SymbolType('#:{0}${1}'.format(prefix, str(count)))
+
+        return SymbolType(
+            '#:{0}${1}'.format(prefix, str(_gensym_counter.set(1, add))))
 
     return gensym
 
