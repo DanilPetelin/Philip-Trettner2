@@ -22,8 +22,9 @@ from expression.sexpression import S
 
 # sexpression.py does not depend on other modules in this package
 # future versions may safely depend on core.py and statement.py
+
 from operator import add
-from threading import Lock
+
 from statement import Var
 
 

@@ -18,8 +18,9 @@ Stack-based combinator algebra for Python.
 
 from functools import lru_cache
 from itertools import permutations
-from .core import Tuple, List
 from collections import deque, Mapping
+
+from core import Tuple, List
 
 # To avoid circular dependencies in this package,
 # stack.py shall depend only on the core.py and statement.py modules.
