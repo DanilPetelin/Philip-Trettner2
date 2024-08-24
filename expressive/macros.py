@@ -17,7 +17,7 @@
 from _collections_abc import Mapping
 
 from core import partition
-from sexpression import S, Quote, macro
+from sexpression import S, Quote, macro, SEvalable
 from statement import Elif, progn
 
 
@@ -65,18 +65,18 @@ class Scope(Mapping):
     def Nonlocal(self, *names):
         self.nonlocals |= set(names)
 
-class Lambda:
+class Lambda(SEvalable):
     def __init__(self, symbols, body, Nonlocals):
         self.symbols = Quote.of(symbols)
         self.body = body
         self.nonlocals = Quote.of(Nonlocals)
 
-    def eval(self, scope=None):
-        symbols = self.symbols.eval(scope)
-        nonlocals = self.nonlocals.eval(scope)
+    def s_eval(self, scope=None):
+        symbols = self.symbols.s_eval(scope)
+        nonlocals = self.nonlocals.s_eval(scope)
 
         def lx(*args, **kwargs):
-            return self.body.eval(
+            return self.body.s_eval(
                 Scope(scope,
                       dict(zip(symbols, args)),
                       kwargs,
@@ -89,27 +89,27 @@ def Lx(symbols, *body, Nonlocals=None):
     lambda expression.
     >>> from operator import add
     >>> plus = S(Lx,(S.x,S.y),S(add,S.x,S.y))
-    >>> S(plus,40,2).eval()
+    >>> S(plus,40,2).s_eval()
     42
-    >>> S(plus,20,4).eval()
+    >>> S(plus,20,4).s_eval()
     24
     """
     return Lambda(symbols, S(progn, *body), Nonlocals)
 
-class SetQ:
+class SetQ(SEvalable):
     def __init__(self, pairs):
         self.pairs = ((q, Quote.of(x)) for q, x in partition(pairs))
 
-    def eval(self, scope):
+    def s_eval(self, scope):
         for var, val in self.pairs:
-            scope[var] = val.eval(scope)
+            scope[var] = val.s_eval(scope)
 
 
 @macro
 def SETQ(*pairs):
     """
     >>> from operator import add
-    >>> S(SETQ,S.spam,1,S.eggs,S(add,1,S.spam)).eval(globals())
+    >>> S(SETQ,S.spam,1,S.eggs,S(add,1,S.spam)).s_eval(globals())
     >>> spam
     1
     >>> eggs
@@ -122,7 +122,7 @@ class Nonlocal:
     def __init__(self, symbols):
         self.symbols = symbols
 
-    def eval(self,scope):
+    def s_eval(self,scope):
         scope.Nonlocal(*self.symbols)
 
 
@@ -130,13 +130,13 @@ class Nonlocal:
 def NONLOCAL(*symbols):
     return Nonlocal(symbols)
 
-class ThunkType:
+class ThunkType(SEvalable):
     def __init__(self, body):
         self.body = Quote.of(body)
 
-    def eval(self, scope=None):
+    def s_eval(self, scope=None):
         def thunk():
-            return self.body.eval(scope)
+            return self.body.s_eval(scope)
         return thunk
 @macro
 def THUNK(body):
@@ -147,12 +147,12 @@ def THUNK(body):
 def IF(Boolean, Then, Else=None):
     """
     >>> from operator import add, sub
-    >>> S(IF,S(sub,1,1),S(print,'then')).eval()
-    >>> S(IF,S(add,1,1),S(print,'then')).eval()
+    >>> S(IF,S(sub,1,1),S(print,'then')).s_eval()
+    >>> S(IF,S(add,1,1),S(print,'then')).s_eval()
     then
-    >>> S(IF,S(add,1,1),S(print,'then'),S(print,'else')).eval()
+    >>> S(IF,S(add,1,1),S(print,'then'),S(print,'else')).s_eval()
     then
-    >>> S(IF,S(sub,1,1),S(print,'then'),S(print,'else')).eval()
+    >>> S(IF,S(sub,1,1),S(print,'then'),S(print,'else')).s_eval()
     else
     """
     return S(EVAL,
@@ -165,15 +165,15 @@ def IF(Boolean, Then, Else=None):
 def EVAL(body):
     return EvalType(body)
 
-class EvalType:
+class EvalType(SEvalable):
     def __init__(self, body):
         self.body = body
 
-    def eval(self,scope):
-        if hasattr(self.body,'eval'):
-            res = self.body.eval(scope)
-            if hasattr(res,'eval'):
-                return res.eval(scope)
+    def s_eval(self,scope):
+        if isinstance(self.body, SEvalable):
+            res = self.body.s_eval(scope)
+            if isinstance(res, SEvalable):
+                return res.s_eval(scope)
             return res
         return self.body
 
@@ -233,15 +233,15 @@ def DOT(obj, *names):
     attribute and index/key access macro
     >>> 'quux'[-1]
     'x'
-    >>> S(DOT,'quux',[-1]).eval()
+    >>> S(DOT,'quux',[-1]).s_eval()
     'x'
     >>> ['foo','bar','baz'][1][-1]
     'r'
-    >>> S(DOT,['foo','bar','baz'],[1],[-1]).eval()
+    >>> S(DOT,['foo','bar','baz'],[1],[-1]).s_eval()
     'r'
     >>> str.join
     <method 'join' of 'str' objects>
-    >>> S(DOT,str,S.join).eval(dict(join='error!'))
+    >>> S(DOT,str,S.join).s_eval(dict(join='error!'))
     <method 'join' of 'str' objects>
     """
     res = obj

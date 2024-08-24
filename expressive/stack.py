@@ -22,6 +22,7 @@ from collections import deque, Mapping
 
 from core import Tuple, List
 
+
 # To avoid circular dependencies in this package,
 # stack.py shall depend only on the core.py and statement.py modules.
 # statement.py is not required in the current version.
@@ -94,7 +95,7 @@ class Stack:
         >>> Stack().push(1, dup, 2)
         Stack(1, 1, 2)
 
-        Chaning push after *unpacking
+        Chaining push after *unpacking
         >>> Stack().push(*[1, 2, 3]).push(dup)
         Stack(1, 2, 3, 3)
         """

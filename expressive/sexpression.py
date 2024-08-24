@@ -22,99 +22,103 @@ from expression.sexpression import S
 
 # sexpression.py does not depend on other modules in this package
 # future versions may safely depend on core.py and statement.py
-
+from abc import ABCMeta, abstractmethod
 from operator import add
 
 from statement import Var
 
+class SEvalable(metaclass=ABCMeta):
+    @abstractmethod
+    def s_eval(self, scope):
+        pass
 
-class SExpression:
+class SExpression(SEvalable):
     """
     S-expressions are executable data structures for metaprogramming.
 
     An S object represents a potential function call.
 
     The function isn't actually called until invocation
-    of the .eval() method, which will also .eval() any
-    nested S objects before applying the function.
+    of the .s_eval() method, which will also .s_eval() any
+    nested SEvalable objects before applying the function.
     >>> from operator import add, mul
     >>> spam = S(add,20,4)
     >>> spam
     S(<built-in function add>,
       20,
       4)
-    >>> spam.eval()  # same as >>> add(20,4)
+    >>> spam.s_eval()  # same as >>> add(20,4)
     24
     >>> spam = S(add,S(mul,4,10),2)
-    >>> spam.eval()
+    >>> spam.s_eval()
     42
 
     Even the function argument can be a nested S-expression
-    >>> S(S(lambda a,b: a and b, add,mul),2,3).eval()
+    >>> S(S(lambda a,b: a and b, add,mul),2,3).s_eval()
     6
-    >>> S(S(lambda a,b: a or b, add,mul),2,3).eval()
+    >>> S(S(lambda a,b: a or b, add,mul),2,3).s_eval()
     5
 
     Keywords also work
-    >>> S(print,1,2,3,sep='::').eval()
+    >>> S(print,1,2,3,sep='::').s_eval()
     1::2::3
 
-    Important: .eval() will not peek into other data structures to evaluate
-    nested S objects. You must evaluate them explicitly, or use
-    an S expression to create the data structure.
+    Important: SExpression will not peek into other data structures to evaluate
+    nested SEvalable objects. You must evaluate them explicitly, or use
+    an S-expression to create the data structure.
 
     This doesn't print 'test'.
     >>> identity = lambda x: x
-    >>> S(identity,[S(print,'test')]).eval()
+    >>> S(identity,[S(print,'test')]).s_eval()
     [S(<built-in function print>,
       'test')]
 
     This does, since it uses another S-expression to make the list.
     >>> from expressive.core import List
-    >>> S(identity,S(List,S(print,'test'))).eval()
+    >>> S(identity,S(List,S(print,'test'))).s_eval()
     test
     [None]
 
     Explicit evaluation also works.
-    >>> S(identity,[S(print,'test').eval()]).eval()
+    >>> S(identity,[S(print,'test').s_eval()]).s_eval()
     test
     [None]
 
-    .eval() treats functions with the @macro decorator specially.
+    SExpression treats functions with the @macro decorator specially.
     These are given any nested S objects unevaluated, and return a
     new object to be evaluated.
     >>> from expressive.macros import IF
-    >>> S(IF, True, S(print,'yes'), S(print,'no')).eval()
+    >>> S(IF, True, S(print,'yes'), S(print,'no')).s_eval()
     yes
-    >>> S(IF, False, S(print,'yes'), S(print,'no')).eval()
+    >>> S(IF, False, S(print,'yes'), S(print,'no')).s_eval()
     no
 
     For comparison, note that a non-macro function gets any nested
     S objects pre-evaluated.
     >>> S(lambda b,t,e=None: t if b else e,
-    ...   True, S(print,'yes'), S(print,'no')).eval()
+    ...   True, S(print,'yes'), S(print,'no')).s_eval()
     yes
     no
 
     """
 
     def __init__(self, func, *args, **kwargs):
-        self.wfunc = Quote.of(func)
+        self.qfunc = Quote.of(func)
         self.func = func
-        self.wargs = tuple(Quote.of(a) for a in args)
+        self.qargs = tuple(Quote.of(a) for a in args)
         self.args = args
-        self.wkwargs = {k: Quote.of(v) for k, v in kwargs.items()}
+        self.qkwargs = {k: Quote.of(v) for k, v in kwargs.items()}
         self.kwargs = kwargs
 
-    def eval(self, scope=None):
-        func = self.wfunc.eval(scope)
+    def s_eval(self, scope=None):
+        func = self.qfunc.s_eval(scope)
         if hasattr(func, '__macro__'):
             # return try_eval(func(*self.args, **self.kwargs), scope)
             form = func(*self.args, **self.kwargs)
-            return form.eval(scope) if hasattr(form,'eval') else form
+            return form.s_eval(scope) if isinstance(form, SEvalable) else form
         return func(
-            *(a.eval(scope) for a in self.wargs),
-            **{k: v.eval(scope) for k, v in self.wkwargs.items()})
+            *(a.s_eval(scope) for a in self.qargs),
+            **{k: v.s_eval(scope) for k, v in self.qkwargs.items()})
 
     def __repr__(self):
         indent = '\n  '
@@ -131,13 +135,13 @@ class SymbolError(NameError):
     pass
 
 
-class Quote:
+class Quote(SEvalable):
     __slots__ = ('item',)
 
     def __init__(self, item):
         self.item = item
 
-    def eval(self, scope):
+    def s_eval(self, scope):
         return self.item
 
     def __repr__(self):
@@ -145,7 +149,7 @@ class Quote:
 
     @classmethod
     def of(cls, item):
-        if hasattr(item,'eval'):
+        if isinstance(item, SEvalable):
             return item
         return cls(item)
 
@@ -157,7 +161,7 @@ def _private():
 
 
     # noinspection PyShadowingNames
-    class SymbolType(UserString, str):
+    class SymbolType(UserString, str, SEvalable):
         """
         Symbols for S-expressions.
 
@@ -171,18 +175,18 @@ def _private():
         >>> withsymbol  # S.spam is still a symbol
         S(<built-in function print>,
           S.spam)
-        >>> nosymbol.eval()
+        >>> nosymbol.s_eval()
         1
 
         Symbols require a containing scope
-        >>> withsymbol.eval(globals())
+        >>> withsymbol.s_eval(globals())
         1
         >>> spam = 2
-        >>> nosymbol.eval(globals())  # doesn't change
+        >>> nosymbol.s_eval(globals())  # doesn't change
         1
-        >>> withsymbol.eval(globals())
+        >>> withsymbol.s_eval(globals())
         2
-        >>> withsymbol.eval(dict(spam=42))  # value depends on scope
+        >>> withsymbol.s_eval(dict(spam=42))  # value depends on scope
         42
 
         Macros get Symbols unevaluated. Unevaluated Symbols work like strings.
@@ -210,7 +214,7 @@ def _private():
 
         from types import MappingProxyType
 
-        def eval(self, scope=MappingProxyType({})):
+        def s_eval(self, scope=MappingProxyType({})):
             """ looks up itself in scope """
             try:
                 return scope[self]
