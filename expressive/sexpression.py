@@ -27,6 +27,7 @@ from operator import add
 
 from statement import Var
 
+
 class SEvalable(metaclass=ABCMeta):
     @abstractmethod
     def s_eval(self, scope):
