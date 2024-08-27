@@ -30,7 +30,7 @@ The functional style works better with statements replaced by
 expressions, but be aware that some statement replacements (like For)
 always return None and must act through side effects.
 
-Functions for the keywords `False`, `None`, `True`, `and`, `as`, `if`,
+Functions for the keywords `False`, `None`, `True`, `and`, `if`,
 `in`, `is`, `lambda`, `not`, `or`, and `yield` are not provided because
 they are already expressions. Similarly for most operators.
 
@@ -42,13 +42,13 @@ partially supported with delitem. (delattr() is already a builtin)
 
 The augmented assignment statements, += -= *= /= %= &= |= ^= <<= >>= **=
 //=, are partially supported with the operator module combined with
-assign_attr(), assign_item(), and Var.assign().
+assign_attr(), assign_item(), and Var.set().
 
 Assignment statements, =, are partially supported with let(), and by
-using assign_attr(), assign_item(), and Var.assign()
+using assign_attr(), assign_item(), and Var.set()
 without the optional operator.
 
-Use the metaclass directly to substitute for `class`
+Use the metaclass directly to substitute for `class`, for example
   X = type('X', (A, B), dict(a=1))
 is the same as
   class X(A, B): a = 1
@@ -768,7 +768,8 @@ def progn(*body):
     (1, 2, 3)
 
     progn is used to combine several expressions into one by sequencing,
-    for side-effects. Python guarantees sequential evaluation of arguments.
+    for side-effects. Python guarantees sequential evaluation of arguments:
+    https://docs.python.org/3/reference/expressions.html#evaluation-order
     >>> spam = progn(print('side'),print('effect'),'suppressed',42)
     side
     effect

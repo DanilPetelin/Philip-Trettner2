@@ -50,7 +50,7 @@ class SExpression(SEvalable):
       4)
     >>> spam.s_eval()  # same as >>> add(20,4)
     24
-    >>> spam = S(add,S(mul,4,10),2)
+    >>> spam = S(add,S(mul,4,10),2)  # represents >>> add(mul(4, 10), 2)  # 4*10 + 2
     >>> spam.s_eval()
     42
 
@@ -104,11 +104,13 @@ class SExpression(SEvalable):
     """
 
     def __init__(self, func, *args, **kwargs):
+        # non-SEvalables are quoted so they s_eval to themselves
         self.qfunc = Quote.of(func)
-        self.func = func
-        self.qargs = tuple(Quote.of(a) for a in args)
-        self.args = args
+        self.qargs = map(Quote.of, args)
         self.qkwargs = {k: Quote.of(v) for k, v in kwargs.items()}
+        # keep unquoted data for __repr__ and macros
+        self.func = func
+        self.args = args
         self.kwargs = kwargs
 
     def s_eval(self, scope=None):
@@ -150,6 +152,10 @@ class Quote(SEvalable):
 
     @classmethod
     def of(cls, item):
+        """
+        Unlike the usual __init__(), of() will not
+        quote the item if it is already SEvalable
+        """
         if isinstance(item, SEvalable):
             return item
         return cls(item)
@@ -182,11 +188,11 @@ def _private():
         Symbols require a containing scope
         >>> withsymbol.s_eval(globals())
         1
-        >>> spam = 2
-        >>> nosymbol.s_eval(globals())  # doesn't change
+        >>> spam = 8
+        >>> nosymbol.s_eval(globals())  # doesn't change, was baked-in
         1
-        >>> withsymbol.s_eval(globals())
-        2
+        >>> withsymbol.s_eval(globals())  # globals()['spam'] == 8
+        8
         >>> withsymbol.s_eval(dict(spam=42))  # value depends on scope
         42
 

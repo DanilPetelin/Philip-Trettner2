@@ -16,7 +16,7 @@
 Stack-based combinator algebra for Python.
 """
 
-from functools import lru_cache
+from functools import lru_cache, update_wrapper
 from collections import deque
 
 from core import Tuple
@@ -35,11 +35,11 @@ class Stack:
     """
     def __init__(self, *args, rest=None):
         self.head = rest
-        for w in args:
-            if isinstance(w, Combinator):
-                self.head = w(self).head
+        for e in args:
+            if isinstance(e, Combinator):
+                self.head = e(self).head
             else:
-                self.head = (self.head, w)
+                self.head = (self.head, e)
 
     def __iter__(self):
         """
@@ -91,6 +91,7 @@ class Stack:
         Stack(1, 2, 3, 4)
 
         Pushing a combinator executes it
+        >>> from expressive.combinators import dup
         >>> Stack().push(1, dup, 2)
         Stack(1, 1, 2)
 
@@ -173,6 +174,8 @@ class Combinator:
     """
     def __init__(self, func):
         self.func = func
+        update_wrapper(self, func)
+        # self.__doc__ = func.__doc__
 
     def __call__(self, stack):
         return self.func(stack)
@@ -207,14 +210,15 @@ def op(func, depth=2):
             if func.__name__.startswith('<'):
                 name = repr(func)
             if depth == 2:
-                return "op(%s)" % name
-            return "op({0}, {1})".format(name, depth)
+                return "op!(%s)" % name
+            return "op!({0}, {1})".format(name, depth)
 
-    @OpCombinator
+    # @OpCombinator
+    # @Combinator
     def op_combinator(stack):
         stack, *args = stack.pop(depth)
         return stack.push(func(*args))
-    return op_combinator
+    return Combinator(op_combinator)
 
 
 def op1(func):
@@ -234,6 +238,7 @@ class Def:
     """
     Define a Python function from stack elements.
     >>> from operator import mul
+    >>> from expressive.combinators import dup
     >>> square = Def(dup,op(mul))
     >>> square(7)
     49

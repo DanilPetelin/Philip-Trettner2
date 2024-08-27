@@ -15,6 +15,7 @@
 # TODO: docstring macros.py
 
 from _collections_abc import Mapping
+import itertools
 
 from core import partition
 from sexpression import S, Quote, macro, SEvalable
@@ -31,12 +32,12 @@ class Scope(Mapping):
     def __iter__(self):
         return iter(self.vars)
 
-    def __init__(self, parent, locals=None, kwvals=None, nonlocals=None):
+    def __init__(self, parent, locals=None, kwvals=None):
         self.parent = parent
         self.vars = locals or {}
         if kwvals:
             self.vars.update(kwvals)
-        self.nonlocals = nonlocals or set()
+        self.nonlocals = set()
 
     def __getitem__(self, name):
         try:
@@ -66,25 +67,48 @@ class Scope(Mapping):
         self.nonlocals |= set(names)
 
 class Lambda(SEvalable):
-    def __init__(self, symbols, body, Nonlocals):
-        self.symbols = Quote.of(symbols)
+    def __init__(self, symbols, body, varg, kwonlys, kwvarg, defaults):
         self.body = body
-        self.nonlocals = Quote.of(Nonlocals)
+        self.varg = varg
+        self.kwvarg = kwvarg
+        self.symbols, self.kwolnlys, self.defaults = \
+            map(Quote.of, (symbols, kwonlys, defaults))
 
     def s_eval(self, scope=None):
-        symbols = self.symbols.s_eval(scope)
-        nonlocals = self.nonlocals.s_eval(scope)
+        symbols, kwonlys, defaults = (s.s_eval(scope) for s in (
+            self.symbols, self.kwolnlys, self.defaults))
+        kwonlys = set(kwonlys)
+        symbols_set = set(symbols)
 
         def lx(*args, **kwargs):
+            kwvals = dict(defaults)
+            kwvals[self.kwvarg] = {k: v for k, v in kwargs.items()
+                                   if k not in symbols_set if k not in kwonlys}
+            kwvals[self.varg] = args[len(symbols):]
+            kwvals.update({k: v for k, v in kwargs.items() if k in kwonlys})
+
             return self.body.s_eval(
                 Scope(scope,
                       dict(zip(symbols, args)),
-                      kwargs,
-                      nonlocals))
+                      kwvals))
         return lx
 
+class Lambda1(SEvalable):
+    def __init__(self, symbol, body):
+        self.body = body
+        self.symbol = symbol
+
+    def s_eval(self, scope):
+        def l1(arg):
+            return self.body.s_eval(Scope(scope, {self.symbol: arg}))
+
 @macro
-def Lx(symbols, *body, Nonlocals=None):
+def L1(symbol, *body):
+    return Lambda1(symbol, S(progn, *body))
+
+# symbols, vargs, kwonly, kwvargs
+@macro
+def Lx(symbols, *body, varg=None, kwonlys=None, kwvarg=None, defaults=None):
     """
     lambda expression.
     >>> from operator import add
@@ -94,7 +118,8 @@ def Lx(symbols, *body, Nonlocals=None):
     >>> S(plus,20,4).s_eval()
     24
     """
-    return Lambda(symbols, S(progn, *body), Nonlocals)
+    # TODO: test varg, kwonlys, kwvarg, defaults
+    return Lambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
 
 class SetQ(SEvalable):
     def __init__(self, pairs):
@@ -122,7 +147,7 @@ class Nonlocal:
     def __init__(self, symbols):
         self.symbols = symbols
 
-    def s_eval(self,scope):
+    def s_eval(self, scope):
         scope.Nonlocal(*self.symbols)
 
 

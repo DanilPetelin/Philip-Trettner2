@@ -15,9 +15,10 @@
 from _collections_abc import Mapping
 from itertools import permutations
 
-from core import List
-from stack import Combinator, defcombinator, Stack
+from core import List as _List
+from stack import defcombinator, Stack, Combinator
 
+# TODO: get doctests working in decorated combinators
 
 # ##
 # Stack manipulation combinators
@@ -156,6 +157,7 @@ def do(stack):
     """
     The do combinator applies an ordinary Python function to a
     list of arguments.
+
     (The print function returns None)
     >>> Stack([1,2,3],print,do)
     1 2 3
@@ -189,7 +191,7 @@ def dip(stack):
 @Combinator
 def cons(stack):
     stack, p, q = stack.pop(2)
-    return stack.push(List(p, *q))
+    return stack.push(_List(p, *q))
 
 @Combinator
 def take(stack):
@@ -201,6 +203,7 @@ def Ic(stack):
     """
     the I combinator. Unquotes the iterable by pushing its elements.
     >>> from operator import add
+    >>> from expressive.stack import op
     >>> Stack([1,2,op(add)], Ic)
     Stack(3,)
     """
@@ -220,7 +223,7 @@ def Bc(stack):
 @Combinator
 def Sc(stack):
     stack, p, q, r = stack.pop(3)
-    return stack.push(List(p, *q), p, *r)
+    return stack.push(_List(p, *q), p, *r)
 
 @Combinator
 def Tc(stack):
@@ -312,3 +315,9 @@ def subspace(stack):
 
 
 # TODO: port Joy's recursive combinators
+
+del permutations, _List, Combinator, defcombinator
+__test__ = {k: v.__doc__ for k, v in globals().items()
+            if hasattr(v, '__doc__') if v.__doc__ is not None}
+# raise Exception(repr(__test__))
+
