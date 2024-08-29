@@ -193,10 +193,12 @@ def cons(stack):
     stack, p, q = stack.pop(2)
     return stack.push(_List(p, *q))
 
+
 @Combinator
 def take(stack):
     stack, p, q = stack.pop(2)
-    return stack.push(list(p)+[q])
+    return stack.push(list(p) + [q])
+
 
 @Combinator
 def Ic(stack):
@@ -210,25 +212,30 @@ def Ic(stack):
     stack, x = stack.pop()
     return stack.push(*x)
 
+
 @Combinator
 def Jc(stack):
     stack, p, q, r, s = stack.pop(4)
     return stack.push(q, p, *s).push(r, *s)
+
 
 @Combinator
 def Bc(stack):
     stack, p, q = stack.pop()
     return stack.push(*p).push(*q)
 
+
 @Combinator
 def Sc(stack):
     stack, p, q, r = stack.pop(3)
     return stack.push(_List(p, *q), p, *r)
 
+
 @Combinator
 def Tc(stack):
     stack, p, q = stack.pop(2)
     return stack.push(q, *p)
+
 
 Cc = defcombinator([swap], dip, Ic)
 
@@ -237,6 +244,7 @@ Cc = defcombinator([swap], dip, Ic)
 def Kc(stack):
     stack, p, q = stack.pop(2)
     return stack.push(*q)
+
 
 Wc = defcombinator([dup], dip, Ic)
 
@@ -313,11 +321,9 @@ def subspace(stack):
     stack, a, p = stack.pop(2)
     return stack.push(Stack(*a).push(*p))
 
-
 # TODO: port Joy's recursive combinators
 
 del permutations, _List, Combinator, defcombinator
 __test__ = {k: v.__doc__ for k, v in globals().items()
             if hasattr(v, '__doc__') if v.__doc__ is not None}
 # raise Exception(repr(__test__))
-

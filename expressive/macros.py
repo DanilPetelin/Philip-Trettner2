@@ -15,7 +15,6 @@
 # TODO: docstring macros.py
 
 from _collections_abc import Mapping
-import itertools
 
 from core import partition
 from sexpression import S, Quote, macro, SEvalable
@@ -32,9 +31,9 @@ class Scope(Mapping):
     def __iter__(self):
         return iter(self.vars)
 
-    def __init__(self, parent, locals=None, kwvals=None):
+    def __init__(self, parent, local_variables=None, kwvals=None):
         self.parent = parent
-        self.vars = locals or {}
+        self.vars = local_variables or {}
         if kwvals:
             self.vars.update(kwvals)
         self.nonlocals = set()
@@ -66,6 +65,7 @@ class Scope(Mapping):
     def Nonlocal(self, *names):
         self.nonlocals |= set(names)
 
+
 class Lambda(SEvalable):
     def __init__(self, symbols, body, varg, kwonlys, kwvarg, defaults):
         self.body = body
@@ -91,7 +91,9 @@ class Lambda(SEvalable):
                 Scope(scope,
                       dict(zip(symbols, args)),
                       kwvals))
+
         return lx
+
 
 class Lambda1(SEvalable):
     def __init__(self, symbol, body):
@@ -102,9 +104,13 @@ class Lambda1(SEvalable):
         def l1(arg):
             return self.body.s_eval(Scope(scope, {self.symbol: arg}))
 
+        return l1
+
+
 @macro
 def L1(symbol, *body):
     return Lambda1(symbol, S(progn, *body))
+
 
 # symbols, vargs, kwonly, kwvargs
 @macro
@@ -120,6 +126,7 @@ def Lx(symbols, *body, varg=None, kwonlys=None, kwvarg=None, defaults=None):
     """
     # TODO: test varg, kwonlys, kwvarg, defaults
     return Lambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
+
 
 class SetQ(SEvalable):
     def __init__(self, pairs):
@@ -155,6 +162,7 @@ class Nonlocal:
 def NONLOCAL(*symbols):
     return Nonlocal(symbols)
 
+
 class ThunkType(SEvalable):
     def __init__(self, body):
         self.body = Quote.of(body)
@@ -162,7 +170,10 @@ class ThunkType(SEvalable):
     def s_eval(self, scope=None):
         def thunk():
             return self.body.s_eval(scope)
+
         return thunk
+
+
 @macro
 def THUNK(body):
     return ThunkType(body)
@@ -190,17 +201,19 @@ def IF(Boolean, Then, Else=None):
 def EVAL(body):
     return EvalType(body)
 
+
 class EvalType(SEvalable):
     def __init__(self, body):
         self.body = body
 
-    def s_eval(self,scope):
+    def s_eval(self, scope):
         if isinstance(self.body, SEvalable):
             res = self.body.s_eval(scope)
             if isinstance(res, SEvalable):
                 return res.s_eval(scope)
             return res
         return self.body
+
 
 @macro
 def COND(*rest, Else=None):
@@ -284,19 +297,19 @@ def _private():
         # TODO: doctest THREAD
         if first is _sentinel:
             return x
-        return THREAD(S(first.func,x,*first.args,**first.kwargs),*rest)
+        return THREAD(S(first.func, x, *first.args, **first.kwargs), *rest)
 
     @macro
     def THREAD_TAIL(x, first=_sentinel, *rest):
         # TODO: doctest THREAD_TAIL
         if first is _sentinel:
             return x
-        return THREAD(S(first.func,*(first.args+(x,)),**first.kwargs),*rest)
+        return THREAD(S(first.func, *(first.args + (x,)), **first.kwargs), *rest)
 
     return THREAD, THREAD_TAIL
+
 
 THREAD = None
 THREAD_TAIL = None
 THREAD, THREAD_TAIL = _private()
 del _private
-

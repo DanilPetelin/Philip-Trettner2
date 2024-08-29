@@ -33,6 +33,7 @@ class SEvalable(metaclass=ABCMeta):
     def s_eval(self, scope):
         pass
 
+
 class SExpression(SEvalable):
     """
     S-expressions are executable data structures for metaprogramming.
@@ -160,6 +161,7 @@ class Quote(SEvalable):
             return item
         return cls(item)
 
+
 def _private():
     from collections import UserString
     from keyword import kwlist as _keyword_set
@@ -232,7 +234,9 @@ def _private():
             raise SymbolError(
                 'Symbol %s is not bound in the given scope' % repr(self)
             ) from ex
+
     return SymbolType
+
 
 SymbolType = _private()
 del _private
@@ -276,6 +280,7 @@ def _private():
 
     return gensym
 
+
 gensym = _private()
 del _private
 
@@ -286,6 +291,7 @@ def _private():
         prefix for creating S-expressions and Symbols.
         see help('expressive.sexpression') for further details.
         """
+
         def __call__(self, func, *args, **kwargs):
             return SExpression(func, *args, **kwargs)
 
@@ -308,7 +314,6 @@ def macro(func):
     """
     func.__macro__ = None
     return func
-
 
 # def GENX(func,iterable,predicate):
 # TODO: genexprs

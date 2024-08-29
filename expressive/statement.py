@@ -75,12 +75,16 @@ def _private():
         like
         >>> (lambda: Pass())()
         """
+
         def __call__(self):
             return None
 
         def __repr__(self):
             return 'Pass'
+
     return PassType()
+
+
 Pass = _private()
 del _private
 
@@ -228,14 +232,16 @@ def _private():
         ...   d,))
         42
         """
+
         def __init__(self, result=None, *results, label=None):
             if results:
-               self.result = (result,)+results
+                self.result = (result,) + results
             else:
                 self.result = result
             super().__init__(label=label)
 
     return Break, Continue, Return
+
 # IntelliJ requires individual assignments for globals to show up in Structure tab
 Break = None
 Continue = None
@@ -436,6 +442,7 @@ def Raise(ex, From=None):
         raise ex from From
     raise ex
 
+
 def _private():
     from expressive.core import partition
 
@@ -517,7 +524,9 @@ def _private():
         finally:
             Finally()
         return res
+
     return Try
+
 
 Try = _private()
 del _private
@@ -584,12 +593,14 @@ class Var:
     >>> spam.e
     'eggs'
     """
+
     def __init__(self, e):
 
         from threading import Lock
+
         lock = Lock()
 
-        def set(new, oper=None):
+        def var_set(new, oper=None):
             """
             sets Var's element. Optionally augment assignments with oper.
             set() is locked for thread safety, however direct access to
@@ -613,7 +624,7 @@ class Var:
                 res = e
             return res
 
-        self.set = set
+        self.set = var_set
         self._get = lambda: e  # readonly
 
     @property
@@ -727,6 +738,8 @@ def delitem(obj, index):
 
 
 from types import MappingProxyType
+
+
 def let(body, *, args=(), kwargs=MappingProxyType({}), label=None):
     """
     immediately calls body.
@@ -750,10 +763,12 @@ def let(body, *, args=(), kwargs=MappingProxyType({}), label=None):
     2
     """
     try:
-        return body(*args,**kwargs)
+        return body(*args, **kwargs)
     except Return as r:
         r.handle(label)
         return r.result
+
+
 del MappingProxyType
 
 
@@ -777,4 +792,3 @@ def progn(*body):
     42
     """
     return body[-1]
-

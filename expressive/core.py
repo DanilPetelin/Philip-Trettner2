@@ -17,42 +17,47 @@
 # Other modules in this package may require core.
 # To avoid circular dependencies, core.py shall not depend on any other modules in this package.
 
+
+# noinspection PyPep8Naming
 def Tuple(*args):
     """
     returns args as a tuple
-    >>> Tuple(1,2,3)
+    >>> Tuple(1, 2, 3)
     (1, 2, 3)
     """
     return args
 
 
+# noinspection PyPep8Naming
 def List(*args):
     """
     returns args as a list
-    >>> List(1,2,3)
+    >>> List(1, 2, 3)
     [1, 2, 3]
     """
     return list(args)
 
 
+# noinspection PyPep8Naming
 def Set(*args):
     """
     returns args as a set
-    >>> Set(1,2,3) == {1,2,3}
+    >>> Set(1, 2, 3) == {1, 2, 3}
     True
     """
     return set(args)
 
 
+# noinspection PyPep8Naming
 def Dict(*args):
     """
     pairs args and makes a dictionary with them
-    >>> Dict(1,2)
+    >>> Dict(1, 2)
     {1: 2}
-    >>> Dict(1,2,  3,4,  5,6)[3]
+    >>> Dict(1, 2,  3, 4,  5, 6)[3]
     4
-    >>> Dict(1,2,
-    ...      3,4,) == {1: 2, 3: 4}
+    >>> Dict(1, 2,
+    ...      3, 4) == {1: 2, 3: 4}
     True
     """
     return dict(partition(args))
@@ -71,7 +76,8 @@ class Namespace:
     >>> spam.bar
     2
     """
-    def __init__(self,**kwargs):
+
+    def __init__(self, **kwargs):
         self.__dict__ = kwargs
 
     def __repr__(self):
@@ -83,7 +89,7 @@ class Namespace:
 # prog1 = lambda *body: body[0]
 # prog1.__doc__ = '''\
 # returns the first argument.
-# >>> prog1(1,1+1,1+1+1)
+# >>> prog1(1, 1+1, 1+1+1)
 # 1
 # '''
 
@@ -124,6 +130,8 @@ def _private():
             return zip_longest(*slices, fillvalue=fillvalue)
 
     return partition
+
+
 partition = _private()
 del _private
 
@@ -142,11 +150,10 @@ def akw(*args, **kwargs):
     return args, kwargs
 
 
-def apply(func, *params,  arkwarg):
+def apply(func, *params, arkwarg):
     # TODO: doctest apply
     args, kwargs = arkwarg
-    return func(*(params+args), **kwargs)
-
+    return func(*(params + args), **kwargs)
 
 # def unzip(iterable):
 #     """

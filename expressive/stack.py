@@ -33,6 +33,7 @@ class Stack:
     Pushing a special type of function, called a combinator, onto a
     Stack applies the combinator to elements from the stack.
     """
+
     def __init__(self, *args, rest=None):
         self.head = rest
         for e in args:
@@ -48,11 +49,13 @@ class Stack:
         >>> list(Stack(1,2,3))
         [3, 2, 1]
         """
+
         def it():
             head = self.head
             while head:
                 yield head[1]
                 head = head[0]
+
         return it()
 
     def __repr__(self):
@@ -172,6 +175,7 @@ class Combinator:
     A list containing combinators is not itself a combinator, but a kind of
     quoted program. Some combinators consume these quoted programs.
     """
+
     def __init__(self, func):
         self.func = func
         update_wrapper(self, func)
@@ -204,6 +208,7 @@ def op(func, depth=2):
     >>> Stack(1,2,3,op(Tuple))
     Stack(1, (2, 3))
     """
+
     class OpCombinator(Combinator):
         def __repr__(self):
             name = func.__name__
@@ -213,12 +218,14 @@ def op(func, depth=2):
                 return "op!(%s)" % name
             return "op!({0}, {1})".format(name, depth)
 
-    # @OpCombinator
+    @OpCombinator
     # @Combinator
     def op_combinator(stack):
         stack, *args = stack.pop(depth)
         return stack.push(func(*args))
-    return Combinator(op_combinator)
+
+    # return Combinator(op_combinator)
+    return op_combinator
 
 
 def op1(func):
@@ -228,9 +235,11 @@ def op1(func):
 
 def defcombinator(*args):
     """ Creates a new combinator from a composition of other combinators."""
+
     @Combinator
     def phrase(stack):
         return stack.push(*args)
+
     return phrase
 
 
@@ -247,13 +256,14 @@ class Def:
     >>> square
     Def(dup, op(mul))
     """
+
     def __init__(self, *elements, minargs=None, maxargs=None):
         self.elements, self.min_args, self.max_args = elements, minargs, maxargs
 
     def __call__(self, *args):
         if self.min_args is not None and len(args) < self.min_args:
             raise TypeError("{0}() missing {1} required positional arguments",
-                            repr(self), self.min_args-len(args))
+                            repr(self), self.min_args - len(args))
         if self.max_args is not None and len(args) > self.max_args:
             raise TypeError(
                 "{0}() takes {1} positional arguments, but {2} were given",
@@ -261,5 +271,4 @@ class Def:
         return Stack(*args).push(*self.elements).peek()
 
     def __repr__(self):
-        return "Def"+repr(tuple(self.elements))
-
+        return "Def" + repr(tuple(self.elements))
