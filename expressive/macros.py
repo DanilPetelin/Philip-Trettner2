@@ -17,11 +17,11 @@
 from _collections_abc import Mapping
 
 from core import partition
-from sexpression import S, Quote, macro, SEvalable
+from s_expression import S, Quote, macro, SEvaluable
 from statement import Elif, progn
 
 
-# macros.py depends on core.py, sexpression.py, and statement.py
+# macros.py depends on core.py, s_expression.py, and statement.py
 # macros.py does not currently require stack.py
 
 class Scope(Mapping):
@@ -45,28 +45,27 @@ class Scope(Mapping):
             try:
                 return self.parent[name]
             except TypeError as err:
-                pass
+                raise NameError('name %s is not defined in scope' % repr(name)) from err
             except KeyError as err:
-                pass
-            raise NameError('name %s is not defined in scope' % repr(name)) from err
+                raise NameError('name %s is not defined in scope' % repr(name)) from err
 
     def __setitem__(self, name, val):
         if name in self.nonlocals:
             try:
                 self.parent[name] = val
             except KeyError as err:
-                pass
+                raise NameError('nonlocal %s not found' % repr(name)) from err
             except TypeError as err:
-                pass
-            raise NameError('nonlocal %s not found' % repr(name)) from err
+                raise NameError('nonlocal %s not found' % repr(name)) from err
         else:
             self.vars[name] = val
 
+    # noinspection PyPep8Naming
     def Nonlocal(self, *names):
         self.nonlocals |= set(names)
 
 
-class Lambda(SEvalable):
+class Lambda(SEvaluable):
     def __init__(self, symbols, body, varg, kwonlys, kwvarg, defaults):
         self.body = body
         self.varg = varg
@@ -95,7 +94,7 @@ class Lambda(SEvalable):
         return lx
 
 
-class Lambda1(SEvalable):
+class Lambda1(SEvaluable):
     def __init__(self, symbol, body):
         self.body = body
         self.symbol = symbol
@@ -107,14 +106,16 @@ class Lambda1(SEvalable):
         return l1
 
 
+# noinspection PyPep8Naming
 @macro
 def L1(symbol, *body):
     return Lambda1(symbol, S(progn, *body))
 
 
 # symbols, vargs, kwonly, kwvargs
+# noinspection PyPep8Naming
 @macro
-def Lx(symbols, *body, varg=None, kwonlys=None, kwvarg=None, defaults=None):
+def Lx(symbols, *body, varg=None, kwonlys=(), kwvarg=None, defaults=()):
     """
     lambda expression.
     >>> from operator import add
@@ -128,7 +129,7 @@ def Lx(symbols, *body, varg=None, kwonlys=None, kwvarg=None, defaults=None):
     return Lambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
 
 
-class SetQ(SEvalable):
+class SetQ(SEvaluable):
     def __init__(self, pairs):
         self.pairs = ((q, Quote.of(x)) for q, x in partition(pairs))
 
@@ -138,10 +139,10 @@ class SetQ(SEvalable):
 
 
 @macro
-def SETQ(*pairs):
+def setq(*pairs):
     """
     >>> from operator import add
-    >>> S(SETQ,S.spam,1,S.eggs,S(add,1,S.spam)).s_eval(globals())
+    >>> S(setq,S.spam,1,S.eggs,S(add,1,S.spam)).s_eval(globals())
     >>> spam
     1
     >>> eggs
@@ -150,7 +151,7 @@ def SETQ(*pairs):
     return SetQ(pairs)
 
 
-class Nonlocal:
+class NonlocalType(SEvaluable):
     def __init__(self, symbols):
         self.symbols = symbols
 
@@ -158,70 +159,70 @@ class Nonlocal:
         scope.Nonlocal(*self.symbols)
 
 
+# noinspection PyPep8Naming
 @macro
-def NONLOCAL(*symbols):
-    return Nonlocal(symbols)
+def Nonlocal(*symbols):
+    return NonlocalType(symbols)
 
 
-class ThunkType(SEvalable):
+class ThunkType(SEvaluable):
     def __init__(self, body):
         self.body = Quote.of(body)
 
     def s_eval(self, scope=None):
-        def thunk():
-            return self.body.s_eval(scope)
-
-        return thunk
+        return lambda: self.body.s_eval(scope)
 
 
 @macro
-def THUNK(body):
+def thunk(body):
     return ThunkType(body)
 
 
+# noinspection PyPep8Naming
 @macro
-def IF(Boolean, Then, Else=None):
+def If(boolean, then, Else=None):
     """
     >>> from operator import add, sub
-    >>> S(IF,S(sub,1,1),S(print,'then')).s_eval()
-    >>> S(IF,S(add,1,1),S(print,'then')).s_eval()
+    >>> S(If,S(sub,1,1),S(print,'then')).s_eval()
+    >>> S(If,S(add,1,1),S(print,'then')).s_eval()
     then
-    >>> S(IF,S(add,1,1),S(print,'then'),S(print,'else')).s_eval()
+    >>> S(If,S(add,1,1),S(print,'then'),S(print,'else')).s_eval()
     then
-    >>> S(IF,S(sub,1,1),S(print,'then'),S(print,'else')).s_eval()
+    >>> S(If,S(sub,1,1),S(print,'then'),S(print,'else')).s_eval()
     else
     """
-    return S(EVAL,
-             S((Else, Then).__getitem__,
+    return S(s_eval,
+             S((Else, then).__getitem__,
                S(bool,
-                 Boolean)))
+                 boolean)))
 
 
 @macro
-def EVAL(body):
+def s_eval(body):
     return EvalType(body)
 
 
-class EvalType(SEvalable):
+class EvalType(SEvaluable):
     def __init__(self, body):
         self.body = body
 
     def s_eval(self, scope):
-        if isinstance(self.body, SEvalable):
+        if isinstance(self.body, SEvaluable):
             res = self.body.s_eval(scope)
-            if isinstance(res, SEvalable):
+            if isinstance(res, SEvaluable):
                 return res.s_eval(scope)
             return res
         return self.body
 
 
+# noinspection PyPep8Naming
 @macro
-def COND(*rest, Else=None):
+def cond(*rest, Else=None):
     return S(Elif,
-             *map(lambda x: S(THUNK,
+             *map(lambda x: S(thunk,
                               x),
                   rest),
-             Else=S(THUNK,
+             Else=S(thunk,
                     Else))
 
 
@@ -266,20 +267,20 @@ def COND(*rest, Else=None):
 
 
 @macro
-def DOT(obj, *names):
+def dot(obj, *names):
     """
     attribute and index/key access macro
     >>> 'quux'[-1]
     'x'
-    >>> S(DOT,'quux',[-1]).s_eval()
+    >>> S(dot,'quux',[-1]).s_eval()
     'x'
     >>> ['foo','bar','baz'][1][-1]
     'r'
-    >>> S(DOT,['foo','bar','baz'],[1],[-1]).s_eval()
+    >>> S(dot,['foo','bar','baz'],[1],[-1]).s_eval()
     'r'
     >>> str.join
     <method 'join' of 'str' objects>
-    >>> S(DOT,str,S.join).s_eval(dict(join='error!'))
+    >>> S(dot,str,S.join).s_eval(dict(join='error!'))
     <method 'join' of 'str' objects>
     """
     res = obj
@@ -292,24 +293,27 @@ def DOT(obj, *names):
 def _private():
     _sentinel = S(None)  # used only for is check
 
+    # noinspection PyShadowingNames
     @macro
-    def THREAD(x, first=_sentinel, *rest):
-        # TODO: doctest THREAD
+    def threading(x, first=_sentinel, *rest):
+        # TODO: doctest threading
         if first is _sentinel:
             return x
-        return THREAD(S(first.func, x, *first.args, **first.kwargs), *rest)
+        return threading(S(first.func, x, *first.args, **first.kwargs), *rest)
 
+    # noinspection PyShadowingNames
     @macro
-    def THREAD_TAIL(x, first=_sentinel, *rest):
-        # TODO: doctest THREAD_TAIL
+    def threading_tail(x, first=_sentinel, *rest):
+        # TODO: doctest threading_tail
         if first is _sentinel:
             return x
-        return THREAD(S(first.func, *(first.args + (x,)), **first.kwargs), *rest)
+        return threading(S(first.func, *(first.args + (x,)), **first.kwargs), *rest)
 
-    return THREAD, THREAD_TAIL
+    return threading, threading_tail
 
 
-THREAD = None
-THREAD_TAIL = None
-THREAD, THREAD_TAIL = _private()
+threading = None
+threading_tail = None
+# noinspection PyRedeclaration
+threading, threading_tail = _private()
 del _private

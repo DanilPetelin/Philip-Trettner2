@@ -18,6 +18,7 @@ from itertools import permutations
 from core import List as _List
 from stack import defcombinator, Stack, Combinator
 
+
 # TODO: get doctests working in decorated combinators
 
 # ##
@@ -79,6 +80,7 @@ def {0}(stack):
     return stack.push({1},{2},{3})
 
     '''.format(''.join(_cs), *_cs))
+# noinspection PyUnboundLocalVariable
 del _cs
 
 
@@ -200,6 +202,7 @@ def take(stack):
     return stack.push(list(p) + [q])
 
 
+# noinspection PyPep8Naming
 @Combinator
 def Ic(stack):
     """
@@ -213,24 +216,28 @@ def Ic(stack):
     return stack.push(*x)
 
 
+# noinspection PyPep8Naming
 @Combinator
 def Jc(stack):
     stack, p, q, r, s = stack.pop(4)
     return stack.push(q, p, *s).push(r, *s)
 
 
+# noinspection PyPep8Naming
 @Combinator
 def Bc(stack):
     stack, p, q = stack.pop()
     return stack.push(*p).push(*q)
 
 
+# noinspection PyPep8Naming
 @Combinator
 def Sc(stack):
     stack, p, q, r = stack.pop(3)
     return stack.push(_List(p, *q), p, *r)
 
 
+# noinspection PyPep8Naming
 @Combinator
 def Tc(stack):
     stack, p, q = stack.pop(2)
@@ -240,6 +247,7 @@ def Tc(stack):
 Cc = defcombinator([swap], dip, Ic)
 
 # Kc = defcombinator([pop], dip, Ic)
+# noinspection PyPep8Naming
 @Combinator
 def Kc(stack):
     stack, p, q = stack.pop(2)
@@ -249,6 +257,7 @@ def Kc(stack):
 Wc = defcombinator([dup], dip, Ic)
 
 
+# noinspection PyPep8Naming
 @Combinator
 def Xc(stack):
     p = stack.peek()

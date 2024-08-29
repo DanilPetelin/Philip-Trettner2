@@ -195,6 +195,7 @@ def _private():
         2 1
         """
 
+    # noinspection PyShadowingNames
     class Return(LabeledException):
         """
         Aborts an expression early, but keeps a result value.
@@ -246,6 +247,7 @@ def _private():
 Break = None
 Continue = None
 Return = None
+# noinspection PyRedeclaration
 Break, Continue, Return = _private()
 del _private
 

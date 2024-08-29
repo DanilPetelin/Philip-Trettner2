@@ -17,10 +17,10 @@
 S-expression for Python, with symbol and macro support.
 
 Module usage:
-from expression.sexpression import S
+from expression.s_expression import S
 """
 
-# sexpression.py does not depend on other modules in this package
+# s_expression.py does not depend on other modules in this package
 # future versions may safely depend on core.py and statement.py
 from abc import ABCMeta, abstractmethod
 from operator import add
@@ -28,13 +28,13 @@ from operator import add
 from statement import Var
 
 
-class SEvalable(metaclass=ABCMeta):
+class SEvaluable(metaclass=ABCMeta):
     @abstractmethod
     def s_eval(self, scope):
         pass
 
 
-class SExpression(SEvalable):
+class SExpression(SEvaluable):
     """
     S-expressions are executable data structures for metaprogramming.
 
@@ -42,7 +42,7 @@ class SExpression(SEvalable):
 
     The function isn't actually called until invocation
     of the .s_eval() method, which will also .s_eval() any
-    nested SEvalable objects before applying the function.
+    nested SEvaluable objects before applying the function.
     >>> from operator import add, mul
     >>> spam = S(add,20,4)
     >>> spam
@@ -66,7 +66,7 @@ class SExpression(SEvalable):
     1::2::3
 
     Important: SExpression will not peek into other data structures to evaluate
-    nested SEvalable objects. You must evaluate them explicitly, or use
+    nested SEvaluable objects. You must evaluate them explicitly, or use
     an S-expression to create the data structure.
 
     This doesn't print 'test'.
@@ -89,10 +89,10 @@ class SExpression(SEvalable):
     SExpression treats functions with the @macro decorator specially.
     These are given any nested S objects unevaluated, and return a
     new object to be evaluated.
-    >>> from expressive.macros import IF
-    >>> S(IF, True, S(print,'yes'), S(print,'no')).s_eval()
+    >>> from expressive.macros import If
+    >>> S(If, True, S(print,'yes'), S(print,'no')).s_eval()
     yes
-    >>> S(IF, False, S(print,'yes'), S(print,'no')).s_eval()
+    >>> S(If, False, S(print,'yes'), S(print,'no')).s_eval()
     no
 
     For comparison, note that a non-macro function gets any nested
@@ -105,7 +105,7 @@ class SExpression(SEvalable):
     """
 
     def __init__(self, func, *args, **kwargs):
-        # non-SEvalables are quoted so they s_eval to themselves
+        # non-SEvaluables are quoted so they s_eval to themselves
         self.qfunc = Quote.of(func)
         self.qargs = map(Quote.of, args)
         self.qkwargs = {k: Quote.of(v) for k, v in kwargs.items()}
@@ -119,7 +119,7 @@ class SExpression(SEvalable):
         if hasattr(func, '__macro__'):
             # return try_eval(func(*self.args, **self.kwargs), scope)
             form = func(*self.args, **self.kwargs)
-            return form.s_eval(scope) if isinstance(form, SEvalable) else form
+            return form.s_eval(scope) if isinstance(form, SEvaluable) else form
         return func(
             *(a.s_eval(scope) for a in self.qargs),
             **{k: v.s_eval(scope) for k, v in self.qkwargs.items()})
@@ -139,7 +139,7 @@ class SymbolError(NameError):
     pass
 
 
-class Quote(SEvalable):
+class Quote(SEvaluable):
     __slots__ = ('item',)
 
     def __init__(self, item):
@@ -155,9 +155,9 @@ class Quote(SEvalable):
     def of(cls, item):
         """
         Unlike the usual __init__(), of() will not
-        quote the item if it is already SEvalable
+        quote the item if it is already SEvaluable
         """
-        if isinstance(item, SEvalable):
+        if isinstance(item, SEvaluable):
             return item
         return cls(item)
 
@@ -170,32 +170,38 @@ def _private():
 
 
     # noinspection PyShadowingNames
-    class SymbolType(UserString, str, SEvalable):
+    class SymbolType(UserString, str, SEvaluable):
         """
         Symbols for S-expressions.
 
         A Symbol represents a potential Python identifier.
         >>> spam = 1
-        >>> nosymbol = S(print,spam)
-        >>> nosymbol  # spam already resolved to 1
+        >>> no_symbol = S(print,spam)
+        >>> no_symbol  # spam already resolved to 1
         S(<built-in function print>,
           1)
-        >>> withsymbol = S(print,S.spam)
-        >>> withsymbol  # S.spam is still a symbol
+        >>> with_symbol = S(print,S.spam)
+        >>> with_symbol  # S.spam is still a symbol
         S(<built-in function print>,
           S.spam)
-        >>> nosymbol.s_eval()
+        >>> no_symbol.s_eval()
         1
 
         Symbols require a containing scope
-        >>> withsymbol.s_eval(globals())
+        >>> with_symbol.s_eval(globals())
         1
         >>> spam = 8
-        >>> nosymbol.s_eval(globals())  # doesn't change, was baked-in
+
+        doesn't change, was baked-in
+        >>> no_symbol.s_eval(globals())
         1
-        >>> withsymbol.s_eval(globals())  # globals()['spam'] == 8
+
+        globals()['spam'] == 8
+        >>> with_symbol.s_eval(globals())
         8
-        >>> withsymbol.s_eval(dict(spam=42))  # value depends on scope
+
+        value depends on scope
+        >>> with_symbol.s_eval(dict(spam=42))
         42
 
         Macros get Symbols unevaluated. Unevaluated Symbols work like strings.
@@ -228,12 +234,13 @@ def _private():
             try:
                 return scope[self]
             except KeyError as ex:
-                pass
+                raise SymbolError(
+                    'Symbol %s is not bound in the given scope' % repr(self)
+                ) from ex
             except TypeError as ex:
-                pass
-            raise SymbolError(
-                'Symbol %s is not bound in the given scope' % repr(self)
-            ) from ex
+                raise SymbolError(
+                    'Symbol %s is not bound in the given scope' % repr(self)
+                ) from ex
 
     return SymbolType
 
@@ -245,6 +252,7 @@ del _private
 def _private():
     _gensym_counter = Var(0)
 
+    # noinspection PyShadowingNames
     def gensym(prefix=''):
         """
         generates a unique Symbol. Gensyms are not valid identifiers,
@@ -286,7 +294,7 @@ del _private
 
 
 def _private():
-    class S_Syntax:
+    class SSyntax:
         """
         prefix for creating S-expressions and Symbols.
         see help('expressive.sexpression') for further details.
@@ -298,7 +306,7 @@ def _private():
         def __getattribute__(self, attr):
             return SymbolType(attr)
 
-    return S_Syntax()
+    return SSyntax()
 
 
 S = _private()
