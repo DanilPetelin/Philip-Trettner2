@@ -76,7 +76,7 @@ class SExpression(SEvaluable):
       'test')]
 
     This does, since it uses another S-expression to make the list.
-    >>> from expressive.core import List
+    >>> from drython.core import List
     >>> S(identity,S(List,S(print,'test'))).s_eval()
     test
     [None]
@@ -89,7 +89,7 @@ class SExpression(SEvaluable):
     SExpression treats functions with the @macro decorator specially.
     These are given any nested S objects unevaluated, and return a
     new object to be evaluated.
-    >>> from expressive.macros import If
+    >>> from drython.macros import If
     >>> S(If, True, S(print,'yes'), S(print,'no')).s_eval()
     yes
     >>> S(If, False, S(print,'yes'), S(print,'no')).s_eval()

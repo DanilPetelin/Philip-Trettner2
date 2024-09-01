@@ -94,7 +94,7 @@ class Stack:
         Stack(1, 2, 3, 4)
 
         Pushing a combinator executes it
-        >>> from expressive.combinators import dup
+        >>> from drython.combinators import dup
         >>> Stack().push(1, dup, 2)
         Stack(1, 1, 2)
 
@@ -247,7 +247,7 @@ class Def:
     """
     Define a Python function from stack elements.
     >>> from operator import mul
-    >>> from expressive.combinators import dup
+    >>> from drython.combinators import dup
     >>> square = Def(dup,op(mul))
     >>> square(7)
     49

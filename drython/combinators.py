@@ -208,7 +208,7 @@ def Ic(stack):
     """
     the I combinator. Unquotes the iterable by pushing its elements.
     >>> from operator import add
-    >>> from expressive.stack import op
+    >>> from drython.stack import op
     >>> Stack([1,2,op(add)], Ic)
     Stack(3,)
     """

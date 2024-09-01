@@ -377,7 +377,7 @@ del _private
 
 def _private():
     from importlib import import_module
-    from expressive.core import Tuple
+    from drython.core import Tuple
 
     # noinspection PyPep8Naming,PyShadowingNames
     def Import(item, *items, package=None, From=None):
@@ -446,7 +446,7 @@ def Raise(ex, From=None):
 
 
 def _private():
-    from expressive.core import partition
+    from drython.core import partition
 
     # noinspection PyPep8Naming,PyShadowingNames
     def Try(thunk, *Except, Else=None, Finally=Pass):
