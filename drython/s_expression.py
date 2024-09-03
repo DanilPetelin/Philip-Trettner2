@@ -297,7 +297,7 @@ def _private():
     class SSyntax:
         """
         prefix for creating S-expressions and Symbols.
-        see help('expressive.sexpression') for further details.
+        see help('drython.sexpression') for further details.
         """
 
         def __call__(self, func, *args, **kwargs):

@@ -403,7 +403,7 @@ def _private():
         True
 
         # from .stack import Stack, op
-        >>> Stack, op = Import('Stack', 'op', From='.stack', package='expressive')
+        >>> Stack, op = Import('Stack', 'op', From='.stack', package='drython')
         >>> Stack(1,2,op(sub)).peek()
         -1
         """
