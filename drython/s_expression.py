@@ -18,20 +18,15 @@ S-expression for Python, with symbol and macro support.
 
 Module usage:
 from expression.s_expression import S
-"""
 
+"""
 # s_expression.py does not depend on other modules in this package
 # future versions may safely depend on core.py and statement.py
 from abc import ABCMeta, abstractmethod
 from operator import add
+from core import SEvaluable
 
 from statement import Var
-
-
-class SEvaluable(metaclass=ABCMeta):
-    @abstractmethod
-    def s_eval(self, scope):
-        pass
 
 
 class SExpression(SEvaluable):
@@ -119,7 +114,8 @@ class SExpression(SEvaluable):
         if hasattr(func, '__macro__'):
             # return try_eval(func(*self.args, **self.kwargs), scope)
             form = func(*self.args, **self.kwargs)
-            return form.s_eval(scope) if isinstance(form, SEvaluable) else form
+            # return form.s_eval(scope) if isinstance(form, SEvaluable) else form
+            return Quote.of(form).s_eval(scope)
         return func(
             *(a.s_eval(scope) for a in self.qargs),
             **{k: v.s_eval(scope) for k, v in self.qkwargs.items()})
@@ -158,6 +154,7 @@ class Quote(SEvaluable):
         quote the item if it is already SEvaluable
         """
         if isinstance(item, SEvaluable):
+        # if hasattr(item, 's_eval'):
             return item
         return cls(item)
 
@@ -167,7 +164,6 @@ def _private():
     from keyword import kwlist as _keyword_set
 
     _keyword_set = set(_keyword_set)
-
 
     # noinspection PyShadowingNames
     class SymbolType(UserString, str, SEvaluable):
@@ -345,3 +341,4 @@ def macro(func):
 #     return eval('lambda %s:body'%arg)
 
 # TODO: doctests
+# import doctest; doctest.testmod()

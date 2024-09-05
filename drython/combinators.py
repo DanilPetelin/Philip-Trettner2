@@ -12,18 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from _collections_abc import Mapping
+
+"""
+Stack combinators.
+
+supports import *
+"""
+
+
+import _collections_abc
 from itertools import permutations
 
-from core import List as _List
-from stack import defcombinator, Stack, Combinator
+from drython.core import List
+from drython.stack import Combinator, defcombinator, Stack
 
 
-# TODO: get doctests working in decorated combinators
+_exclude_from__all__ = set(globals().keys())
+
 
 # ##
 # Stack manipulation combinators
 # ##
+
 
 @Combinator
 def pop(stack):
@@ -178,7 +188,7 @@ def do(stack):
     Any Mapping will do for the keywords dictionary
     """
     stack, kwargs, func = stack.pop(2)
-    if isinstance(kwargs, Mapping):
+    if isinstance(kwargs, _collections_abc.Mapping):
         stack, args = stack.pop()
         return stack.push(func(*args, **kwargs))
     return stack.push(func(*kwargs))  # kwargs was just args
@@ -193,7 +203,7 @@ def dip(stack):
 @Combinator
 def cons(stack):
     stack, p, q = stack.pop(2)
-    return stack.push(_List(p, *q))
+    return stack.push(List(p, *q))
 
 
 @Combinator
@@ -234,7 +244,7 @@ def Bc(stack):
 @Combinator
 def Sc(stack):
     stack, p, q, r = stack.pop(3)
-    return stack.push(_List(p, *q), p, *r)
+    return stack.push(List(p, *q), p, *r)
 
 
 # noinspection PyPep8Naming
@@ -332,7 +342,10 @@ def subspace(stack):
 
 # TODO: port Joy's recursive combinators
 
-del permutations, _List, Combinator, defcombinator
-__test__ = {k: v.__doc__ for k, v in globals().items()
-            if hasattr(v, '__doc__') if v.__doc__ is not None}
-# raise Exception(repr(__test__))
+
+__all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]
+
+
+# combinators are callable instances, not functions, so this helps doctest find their docstrings.
+__test__ = {k: globals()[k].__doc__ for k in __all__ if globals()[k].__doc__ is not None}
+

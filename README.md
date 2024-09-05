@@ -29,7 +29,8 @@ Sometimes this approach is appropriate, but manipulating text as correct
 Python code can be difficult and error-prone.
 Compiling text is also rather slow.
 
-Alternatives to text manipulation include manipulation of Python bytecodes (not for the faint of heart),
+Alternatives to text manipulation include manipulation of Python bytecodes
+(not for the faint of heart),
 and manipulation of abstract syntax trees using the `ast` module, which is arcane, but usable:
 
     import ast
@@ -37,21 +38,28 @@ and manipulation of abstract syntax trees using the `ast` module, which is arcan
     # it prints:
     # Module(body=[Expr(value=Call(func=Name(id='print', ctx=Load()), args=[Str(s='Hello, World!')], keywords=[], starargs=None, kwargs=None))])
 
-Reading AST is a bit easier than writing it, but it took that much for a simple `print('Hello, World!')`, and it gets complex fast.
-Unfortunately, bytecode and abstract syntax trees are implementation details subject to change between Python versions and implementations.
+Reading AST is a bit easier than writing it,
+but it took that much for a simple `print('Hello, World!')`,
+and it gets complex fast.
+Unfortunately, bytecode and abstract syntax trees are implementation details subject to change
+between Python versions and implementations.
 
 There's an easier way. Drython provides *executable* data structures that are both simpler than AST,
-and are easier to work with than text. Drython doesn't use ast nor bytecode manipulation, so it's portable across implementations.
+and are easier to work with than text. Drython doesn't use ast nor bytecode manipulation,
+so it's portable across implementations.
 
 ## Drython's statement module ##
 
-Can you re-implement a simple if-statement in Python? I mean without writing an interpreter or
-compiler, or modifying Python itself? Sure, you don't have to, Python has a perfectly good if-statement
-already, but can you? A DSL might need a three-way if-statement (-/+/0), or something like a switch-case.
-Yes, you can use the boilerplate cascading-elif pattern instead for any of your complex branching needs,
-but that's not an abstraction, is it? You have to re-write the switch-case (or what-have-you) imitating logic.
+Can you re-implement a simple if-statement in Python?
+I mean without writing an interpreter or compiler, or modifying Python itself?
+Sure, you don't have to, Python has a perfectly good if-statement already, but can you?
+A DSL might need a three-way if-statement (-/+/0), or something like a switch-case.
+Yes, you can use the boilerplate cascading-elif pattern instead
+for any of your complex branching needs, but that's not an abstraction, is it?
+You have to re-write the switch-case (or what-have-you) imitating logic.
 Every. Single. Time.
-If you can't make a simple `if` substitute, how can you expect to make a complex one when you need it?
+If you can't make a simple `if` substitute,
+how can you expect to make a complex one when you need it?
 
 You might not think Python can do it, but it's actually trivial in Smalltalk.
 "If" isn't a statement in Smalltalk to begin with.
@@ -73,14 +81,17 @@ Too bad Python doesn't have those blocks, or re-implementing `if` would be easy.
 
 Actually, a code block is just an anonymous function.
 Python calls it `lambda`.
-Unfortunately, lambdas in Python can't contain statements, or this could work in Python too. Or can they?
+Unfortunately, lambdas in Python can't contain statements, or this could work in Python too.
+Or can they?
 
 With drython, they can.
 
-Drython's statement module contains function substitutes for every Python statement that isn't already an expression.
+Drython's statement module contains function substitutes for every
+Python statement that isn't already an expression.
 They work in lambdas.
 They work in `eval()`.
-They're pretty handy in drython's executable data structures, which therefore only have to use expressions.
+They're pretty handy in drython's executable data structures,
+which therefore only have to use expressions.
 This makes them a lot simpler than AST, and therefore easier to use.
 
 Too bad `lambda` can't have multiple expressions, or this might actually work.
@@ -92,7 +103,7 @@ What if you just want to return the value of the last statement,
 instead of all of them?
 Use drython's `progn` function instead, also found in the statement module.
 
-Ready to write that `if`? (If not, look at the Elif function in the statement module for hints.)
+Ready to write that `if`? (If not, look at the `Elif()` function in the statement module for hints.)
 Congratulations, you've just learned new abstractions.
 You can extend Python's syntax and write your DSL in that.
 No need to write your own compiler or interpreter, because it's still just Python.
@@ -101,7 +112,7 @@ Ready for the next step?
 ## s-expressions ##
 Tired of writing `lambda: progn(...)` over and over again in the shiny new
 DSL you implemented after reading the last section?
-That sure sounds like a boilerplate design pattern problem.
+That sure sounds like a boilerplate code problem.
 You need better abstractions again.
 
 Wouldn't it be easier if you could write functions that get their arguments unevaluated?
@@ -126,7 +137,8 @@ it is possible to write entire programs as nested S-expressions.
 Think of S-expressions as a simpler kind of abstract syntax trees.
 
 If the S-expression's function is a *macro*,
-then it gets any `SEvaluable` arguments before evaluation, and returns (typically) an `SEvaluable` for evaluation.
+then it gets any `SEvaluable` arguments unevaluated,
+and returns (typically) an `SEvaluable` for evaluation.
 In other words, macros can re-write code.
 
 So you can define "if" like this:
@@ -138,7 +150,7 @@ So you can define "if" like this:
                    S(bool,
                      boolean)))
 
-The above macro rewrites the code to an S-expression that indexes a pair (2-tuple)
+The above macro rewrites the code into an S-expression that indexes a pair (2-tuple)
 using the test part coerced into a boolean,
 (remember `True == 1` and `False == 0` in Python) and then `s_eval`s the selected S-expression.
 
@@ -147,12 +159,12 @@ Especially powerful once you start using macros to write macros.
 It's Lisp's "secret sauce".
 And they're great for creating DSLs.
 
-The s-expression module has a companion macros module which includes many useful basic macros to get you started.
+The s-expression module has a companion `macros` module which
+includes many useful basic macros to get you started.
 
 ## the stack module ##
 The `Def` class from the stack module is an alternative way to write anonymous functions.
 
-These functions are build from a sequence of stack combinators and their associated data.
-
+These functions are built from a sequence of stack *combinators* and their associated data.
 
 

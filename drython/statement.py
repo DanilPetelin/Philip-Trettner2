@@ -16,6 +16,8 @@
 """
 This module exports a set of statement replacement functions.
 
+supports import *
+
 These correspond to Python statements, but are usable as expressions,
 including (for example) in eval and lambda. As higher-order functions,
 these substitutes can be composed, curried, returned, and passed as
@@ -122,7 +124,8 @@ def _private():
             self.label = label
             raise self
 
-    # noinspection PyShadowingNames
+    global Break
+
     class Break(LabeledException):
         """
         a substitute for the break statement.
@@ -155,7 +158,8 @@ def _private():
         1 0
         """
 
-    # noinspection PyShadowingNames
+    global Continue
+
     class Continue(LabeledException):
         """
         a substitute for the continue statement.
@@ -195,7 +199,8 @@ def _private():
         2 1
         """
 
-    # noinspection PyShadowingNames
+    global Return
+
     class Return(LabeledException):
         """
         Aborts an expression early, but keeps a result value.
@@ -241,14 +246,13 @@ def _private():
                 self.result = result
             super().__init__(label=label)
 
-    return Break, Continue, Return
 
-# IntelliJ requires individual assignments for globals to show up in Structure tab
+# IntelliJ requires individual top-level assignments to detect globals
 Break = None
 Continue = None
 Return = None
-# noinspection PyRedeclaration
-Break, Continue, Return = _private()
+
+_private()  # Creates Break, Continue, Return
 del _private
 
 # a Smalltalk-like implementation of Lisp's COND.
@@ -298,6 +302,8 @@ def _private():
     from inspect import Parameter
 
     _positional = (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD)
+
+    global For
 
     # noinspection PyPep8Naming,PyShadowingNames
     def For(iterable, func, Else=Pass, *, label=None):
@@ -368,10 +374,9 @@ def _private():
             return  # skip Else() on Break
         Else()
 
-    return For
 
-
-For = _private()
+For = None
+_private()
 del _private
 
 
@@ -379,7 +384,9 @@ def _private():
     from importlib import import_module
     from drython.core import Tuple
 
-    # noinspection PyPep8Naming,PyShadowingNames
+    global Import
+
+    # noinspection PyPep8Naming
     def Import(item, *items, package=None, From=None):
         """
         convenience function wrapping importlib.import_module()
@@ -410,7 +417,7 @@ def _private():
         if items:
             items = Tuple(item, *items)
         if package:
-            import_module(package)
+            import_module(package)  # really necessary?
         if From:
             module = import_module(From, package)
             if items:
@@ -423,10 +430,9 @@ def _private():
             else:
                 return import_module(item, package)
 
-    return Import
 
-
-Import = _private()
+Import = None
+_private()
 del _private
 
 
@@ -447,6 +453,8 @@ def Raise(ex, From=None):
 
 def _private():
     from drython.core import partition
+
+    global Try
 
     # noinspection PyPep8Naming,PyShadowingNames
     def Try(thunk, *Except, Else=None, Finally=Pass):
@@ -527,10 +535,9 @@ def _private():
             Finally()
         return res
 
-    return Try
 
-
-Try = _private()
+Try = None
+_private()
 del _private
 
 # TODO: doctest While, labeled/unlabeled break/continue

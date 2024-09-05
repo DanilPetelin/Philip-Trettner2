@@ -19,7 +19,7 @@ Stack-based combinator algebra for Python.
 from functools import lru_cache, update_wrapper
 from collections import deque
 
-from core import Tuple
+from .core import Tuple
 
 
 # To avoid circular dependencies in this package,

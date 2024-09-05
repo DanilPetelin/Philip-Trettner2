@@ -16,9 +16,9 @@
 
 from _collections_abc import Mapping
 
-from core import partition
-from s_expression import S, Quote, macro, SEvaluable
-from statement import Elif, progn
+from .core import partition, SEvaluable
+from .s_expression import S, Quote, macro
+from .statement import Elif, progn
 
 
 # macros.py depends on core.py, s_expression.py, and statement.py
@@ -65,7 +65,7 @@ class Scope(Mapping):
         self.nonlocals |= set(names)
 
 
-class Lambda(SEvaluable):
+class SLambda(SEvaluable):
     def __init__(self, symbols, body, varg, kwonlys, kwvarg, defaults):
         self.body = body
         self.varg = varg
@@ -94,7 +94,7 @@ class Lambda(SEvaluable):
         return lx
 
 
-class Lambda1(SEvaluable):
+class SLambda1(SEvaluable):
     def __init__(self, symbol, body):
         self.body = body
         self.symbol = symbol
@@ -109,7 +109,7 @@ class Lambda1(SEvaluable):
 # noinspection PyPep8Naming
 @macro
 def L1(symbol, *body):
-    return Lambda1(symbol, S(progn, *body))
+    return SLambda1(symbol, S(progn, *body))
 
 
 # symbols, vargs, kwonly, kwvargs
@@ -126,10 +126,10 @@ def Lx(symbols, *body, varg=None, kwonlys=(), kwvarg=None, defaults=()):
     24
     """
     # TODO: test varg, kwonlys, kwvarg, defaults
-    return Lambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
+    return SLambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
 
 
-class SetQ(SEvaluable):
+class SSetQ(SEvaluable):
     def __init__(self, pairs):
         self.pairs = ((q, Quote.of(x)) for q, x in partition(pairs))
 
@@ -148,10 +148,10 @@ def setq(*pairs):
     >>> eggs
     2
     """
-    return SetQ(pairs)
+    return SSetQ(pairs)
 
 
-class NonlocalType(SEvaluable):
+class SNonlocal(SEvaluable):
     def __init__(self, symbols):
         self.symbols = symbols
 
@@ -162,10 +162,10 @@ class NonlocalType(SEvaluable):
 # noinspection PyPep8Naming
 @macro
 def Nonlocal(*symbols):
-    return NonlocalType(symbols)
+    return SNonlocal(symbols)
 
 
-class ThunkType(SEvaluable):
+class SThunk(SEvaluable):
     def __init__(self, body):
         self.body = Quote.of(body)
 
@@ -175,7 +175,7 @@ class ThunkType(SEvaluable):
 
 @macro
 def thunk(body):
-    return ThunkType(body)
+    return SThunk(body)
 
 
 # noinspection PyPep8Naming
@@ -199,10 +199,10 @@ def If(boolean, then, Else=None):
 
 @macro
 def s_eval(body):
-    return EvalType(body)
+    return SEval(body)
 
 
-class EvalType(SEvaluable):
+class SEval(SEvaluable):
     def __init__(self, body):
         self.body = body
 

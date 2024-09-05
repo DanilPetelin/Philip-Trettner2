@@ -19,6 +19,9 @@
 
 
 # noinspection PyPep8Naming
+from abc import ABCMeta, abstractmethod
+
+
 def Tuple(*args):
     """
     returns args as a tuple
@@ -99,7 +102,8 @@ def _private():
 
     _sentinel = object()
 
-    # noinspection PyShadowingNames
+    global partition
+
     def partition(iterable, n=2, step=None, fillvalue=_sentinel):
         """
         Chunks iterable into tuples of length n. (default pairs)
@@ -111,9 +115,11 @@ def _private():
         [(0, 1, 2), (3, 4, 5), (6, 7, 8)]
 
         Keep the remainder by using a fillvalue.
+        >>> list(partition(range(10), 3, fillvalue=None))
+        [(0, 1, 2), (3, 4, 5), (6, 7, 8), (9, None, None)]
         >>> list(partition(range(10), 3, fillvalue='x'))
         [(0, 1, 2), (3, 4, 5), (6, 7, 8), (9, 'x', 'x')]
-        
+
         The step defaults to n, but can be more to skip elements.
         >>> list(partition(range(10), 2, 3))
         [(0, 1), (3, 4), (6, 7)]
@@ -129,10 +135,9 @@ def _private():
         else:
             return zip_longest(*slices, fillvalue=fillvalue)
 
-    return partition
 
-
-partition = _private()
+partition = None
+_private()
 del _private
 
 
@@ -162,3 +167,11 @@ def apply(func, *params, arkwarg):
 #     [(1, 3), (2, 4)]
 #     """
 #     return zip(*iterable)
+
+
+class SEvaluable(metaclass=ABCMeta):
+    @abstractmethod
+    def s_eval(self, scope):
+        pass
+
+
