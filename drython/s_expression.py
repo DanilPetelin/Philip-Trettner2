@@ -22,14 +22,14 @@ from expression.s_expression import S
 """
 # s_expression.py does not depend on other modules in this package
 # future versions may safely depend on core.py and statement.py
-from abc import ABCMeta, abstractmethod
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 from operator import add
-from core import SEvaluable
 
-from statement import Var
+from statement import Var, Raise
 
 
-class SExpression(SEvaluable):
+class SExpression:
     """
     S-expressions are executable data structures for metaprogramming.
 
@@ -135,7 +135,7 @@ class SymbolError(NameError):
     pass
 
 
-class Quote(SEvaluable):
+class Quote:
     __slots__ = ('item',)
 
     def __init__(self, item):
@@ -153,8 +153,7 @@ class Quote(SEvaluable):
         Unlike the usual __init__(), of() will not
         quote the item if it is already SEvaluable
         """
-        if isinstance(item, SEvaluable):
-        # if hasattr(item, 's_eval'):
+        if hasattr(item, 's_eval'):
             return item
         return cls(item)
 
@@ -166,7 +165,7 @@ def _private():
     _keyword_set = set(_keyword_set)
 
     # noinspection PyShadowingNames
-    class SymbolType(UserString, str, SEvaluable):
+    class SymbolType(UserString, str):
         """
         Symbols for S-expressions.
 
@@ -230,13 +229,13 @@ def _private():
             try:
                 return scope[self]
             except KeyError as ex:
-                raise SymbolError(
+                Raise(SymbolError(
                     'Symbol %s is not bound in the given scope' % repr(self)
-                ) from ex
+                ), From=ex)
             except TypeError as ex:
-                raise SymbolError(
+                Raise(SymbolError(
                     'Symbol %s is not bound in the given scope' % repr(self)
-                ) from ex
+                ), From=ex)
 
     return SymbolType
 

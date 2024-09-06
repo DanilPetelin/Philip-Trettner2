@@ -18,7 +18,8 @@ Stack combinators.
 
 supports import *
 """
-
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 
 import _collections_abc
 from itertools import permutations

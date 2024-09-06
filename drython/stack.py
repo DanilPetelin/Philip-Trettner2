@@ -15,7 +15,8 @@
 """
 Stack-based combinator algebra for Python.
 """
-
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 from functools import lru_cache, update_wrapper
 from collections import deque
 

@@ -62,7 +62,8 @@ Multiple exits are available via let/progn/Return()
 
 See stack.Def and macros.Lx for two alternative `def` substitutes.
 """
-
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 # To avoid circular dependencies in this package,
 # statement.py shall depend only on the core.py module
 
@@ -353,7 +354,6 @@ def _private():
         1
         not found
         """
-        assert callable(Else)
         params = signature(func).parameters
         try:
             # check for 1-arg positional func
@@ -436,20 +436,78 @@ _private()
 del _private
 
 
-# noinspection PyPep8Naming
-def Raise(ex, From=None):
+def Raise(ex=None, From=Ellipsis):
+    if ex:
+        if From is not Ellipsis:
+            if ex.__class__ == type:
+                ex = ex()
+            # raise ex from From
+            ex.__cause__ = From
+        raise ex
+    raise
+
+
+import sys
+if sys.version_info[0] >= 3:
+    exec("""\
+def Raise(ex=None, From=Ellipsis):
+    if ex:
+        if From is not Ellipsis:
+            raise ex from From
+        raise ex
+    raise
+""")
+del sys
+
+
+# _private()
+# del _private
+
+Raise.__doc__ = \
     """
     raises an exception.
+    >>> Raise(ZeroDivisionError)
+    Traceback (most recent call last):
+        ...
+    ZeroDivisionError
+
+
+    >>> Raise(ZeroDivisionError("Just a test!"))
+    Traceback (most recent call last):
+        ...
+    ZeroDivisionError: Just a test!
+
     Unlike a naked raise statement, this works anywhere
     an expression is allowed, which has some unexpected uses:
     >>> from itertools import count
     >>> list(i if i<10 else Raise(StopIteration) for i in count())
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    """
-    if From:
-        raise ex from From
-    raise ex
 
+    empty raise also works as expected
+    >>> try:
+    ...     1/0
+    ... except ZeroDivisionError:
+    ...     print('zde!')
+    ...     Raise()
+    Traceback (most recent call last):
+        ...
+    ZeroDivisionError: division by zero
+
+    raise ... from is also supported, even experimentally in 2.7
+    >>> Raise(ZeroDivisionError, From=None)
+    Traceback (most recent call last):
+        ...
+    ZeroDivisionError
+
+    >>> Raise(ZeroDivisionError, From=StopIteration())  # doctest: +ELLIPSIS
+    StopIteration
+    <BLANKLINE>
+    The above exception was the direct cause of the following exception:
+    <BLANKLINE>
+    Traceback (most recent call last):
+        ...
+    ZeroDivisionError
+    """
 
 def _private():
     from drython.core import partition
@@ -518,7 +576,7 @@ def _private():
         to catch any exception, like the final `except:`, use BaseException.
         """
         assert len(Except) % 2 == 0
-        assert all(issubclass(x, BaseException) and callable(c)
+        assert all(issubclass(x, BaseException)
                    for x, c in partition(Except))
         try:
             res = thunk()
@@ -527,7 +585,7 @@ def _private():
                 if isinstance(ex, ex_type):
                     return ex_handler(ex)
             else:
-                raise ex
+                raise
         else:
             if Else:
                 res = Else()
@@ -609,6 +667,8 @@ class Var:
 
         lock = Lock()
 
+        e = [e]
+
         def var_set(new, oper=None):
             """
             sets Var's element. Optionally augment assignments with oper.
@@ -624,17 +684,16 @@ class Var:
             # Best keep this block as simple as possible.
             # Var is a useful alternative to primitive locks
             # in many cases.
-            nonlocal e
             with lock:
                 if oper:
-                    e = oper(e, new)
+                    e[0] = oper(e[0], new)
                 else:
-                    e = new
-                res = e
+                    e[0] = new
+                res = e[0]
             return res
 
         self.set = var_set
-        self._get = lambda: e  # readonly
+        self._get = lambda: e[0]  # readonly
 
     @property
     def e(self):

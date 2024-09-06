@@ -18,10 +18,10 @@
 # To avoid circular dependencies, core.py shall not depend on any other modules in this package.
 
 
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
+
 # noinspection PyPep8Naming
-from abc import ABCMeta, abstractmethod
-
-
 def Tuple(*args):
     """
     returns args as a tuple
@@ -167,11 +167,5 @@ def apply(func, *params, arkwarg):
 #     [(1, 3), (2, 4)]
 #     """
 #     return zip(*iterable)
-
-
-class SEvaluable(metaclass=ABCMeta):
-    @abstractmethod
-    def s_eval(self, scope):
-        pass
 
 

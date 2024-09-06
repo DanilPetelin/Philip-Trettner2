@@ -13,10 +13,12 @@
 # limitations under the License.
 
 # TODO: docstring macros.py
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 
-from _collections_abc import Mapping
+from collections import Mapping
 
-from .core import partition, SEvaluable
+from .core import partition
 from .s_expression import S, Quote, macro
 from .statement import Elif, progn
 
