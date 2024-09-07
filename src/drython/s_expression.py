@@ -22,11 +22,12 @@ from expression.s_expression import S
 """
 # s_expression.py does not depend on other modules in this package
 # future versions may safely depend on core.py and statement.py
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
+from __future__ import absolute_import, division, print_function
 from operator import add
+import types
+from drython.core import Empty
 
-from statement import Var, Raise
+from drython.statement import Var, Raise
 
 
 class SExpression:
@@ -159,18 +160,22 @@ class Quote:
 
 
 def _private():
-    from collections import UserString
-    from keyword import kwlist as _keyword_set
-
-    _keyword_set = set(_keyword_set)
+    import sys
+    if sys.version_info[0] == 2:
+        import UserString
+    else:
+        from collections import UserString
+    from keyword import iskeyword
 
     # noinspection PyShadowingNames
-    class SymbolType(UserString, str):
+    class SymbolType(UserString):
         """
         Symbols for S-expressions.
 
         A Symbol represents a potential Python identifier.
         >>> spam = 1
+        >>> print(spam)
+        1
         >>> no_symbol = S(print,spam)
         >>> no_symbol  # spam already resolved to 1
         S(<built-in function print>,
@@ -205,9 +210,9 @@ def _private():
         S.quuxnorf
         """
 
-        def __init__(self, name):
-            super().__init__(name)
-            # self.__name__ = 'SymbolType'
+        # def __init__(self, name):
+        #     super().__init__(name)
+        #     # self.__name__ = 'SymbolType'
 
         def __repr__(self):
             """
@@ -218,13 +223,11 @@ def _private():
             >>> '1' + S.foo
             SymbolType('1foo')
             """
-            if not self.data.isidentifier() or self.data in _keyword_set:
+            if iskeyword(self) or not self[0].isalpha() or not self[1:].replace('_', 'X').isalnum(): # or not self.isidentifier():
                 return 'SymbolType(%s)' % repr(self.data)
             return 'S.' + self.data
 
-        from types import MappingProxyType
-
-        def s_eval(self, scope=MappingProxyType({})):
+        def s_eval(self, scope=Empty()):
             """ looks up itself in scope """
             try:
                 return scope[self]
@@ -298,7 +301,10 @@ def _private():
         def __call__(self, func, *args, **kwargs):
             return SExpression(func, *args, **kwargs)
 
-        def __getattribute__(self, attr):
+        # def __getattribute__(self, attr):
+        #     return SymbolType(attr)
+
+        def __getattr__(self, attr):
             return SymbolType(attr)
 
     return SSyntax()

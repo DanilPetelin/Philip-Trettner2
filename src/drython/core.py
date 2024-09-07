@@ -18,10 +18,30 @@
 # To avoid circular dependencies, core.py shall not depend on any other modules in this package.
 
 
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
+from __future__ import absolute_import, division, print_function
 
 # noinspection PyPep8Naming
+import functools
+from collections import Mapping, Set
+import sys
+
+
+class Empty(tuple, Mapping, Set):
+    __slots__ = ()
+
+    def __new__(cls, *args, **kwargs):
+        return tuple.__new__(cls)
+
+    def __init__(self):
+        tuple.__init__(self)
+
+    def __getitem__(self, key):
+        raise KeyError(key)
+
+    def __repr__(self):
+        return self.__class__.__name__ + '()'
+
+
 def Tuple(*args):
     """
     returns args as a tuple
@@ -49,6 +69,15 @@ def Set(*args):
     True
     """
     return set(args)
+
+
+def fset(*args):
+    """
+    return args as a frozenset
+    >>> fset(1, 2, 3) == frozenset([1, 2, 3])
+    True
+    """
+    return frozenset(args)
 
 
 # noinspection PyPep8Naming
@@ -98,7 +127,11 @@ class Namespace:
 
 
 def _private():
-    from itertools import islice, zip_longest
+    from itertools import islice
+    if sys.version_info[0] == 2:
+        from itertools import izip_longest as zip_longest
+    else:
+        from itertools import zip_longest
 
     _sentinel = object()
 
@@ -151,14 +184,14 @@ def identity(x):
     return x
 
 
-def akw(*args, **kwargs):
-    return args, kwargs
+def funcall(func, *args, **kwargs):
+    return func(*args, **kwargs)
 
 
-def apply(func, *params, arkwarg):
+def apply(func, *args, **kwargs):
     # TODO: doctest apply
-    args, kwargs = arkwarg
-    return func(*(params + args), **kwargs)
+    return (lambda a=(), kw=Empty():
+            functools.partial(func, *args, **kwargs)(*a, **kw))
 
 # def unzip(iterable):
 #     """
