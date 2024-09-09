@@ -24,9 +24,8 @@ from expression.s_expression import S
 # future versions may safely depend on core.py and statement.py
 from __future__ import absolute_import, division, print_function
 from operator import add
-import types
-from drython.core import Empty
 
+from drython.core import Empty
 from drython.statement import Var, Raise
 
 
@@ -46,6 +45,8 @@ class SExpression:
       20,
       4)
     >>> spam.s_eval()  # same as >>> add(20,4)
+    24
+    >>> spam.s_eval()  # works more than once
     24
     >>> spam = S(add,S(mul,4,10),2)  # represents >>> add(mul(4, 10), 2)  # 4*10 + 2
     >>> spam.s_eval()
@@ -101,25 +102,17 @@ class SExpression:
     """
 
     def __init__(self, func, *args, **kwargs):
-        # non-SEvaluables are quoted so they s_eval to themselves
-        self.qfunc = Quote.of(func)
-        self.qargs = map(Quote.of, args)
-        self.qkwargs = {k: Quote.of(v) for k, v in kwargs.items()}
-        # keep unquoted data for __repr__ and macros
         self.func = func
         self.args = args
         self.kwargs = kwargs
 
     def s_eval(self, scope=None):
-        func = self.qfunc.s_eval(scope)
-        if hasattr(func, '__macro__'):
-            # return try_eval(func(*self.args, **self.kwargs), scope)
-            form = func(*self.args, **self.kwargs)
-            # return form.s_eval(scope) if isinstance(form, SEvaluable) else form
-            return Quote.of(form).s_eval(scope)
+        func = s_eval(self.func, scope)
+        if hasattr(func, '_macro_'):
+            return s_eval(func(*self.args, **self.kwargs), scope)
         return func(
-            *(a.s_eval(scope) for a in self.qargs),
-            **{k: v.s_eval(scope) for k, v in self.qkwargs.items()})
+            *(s_eval(a, scope) for a in self.args),
+            **{k: s_eval(v, scope) for k, v in self.kwargs.items()})
 
     def __repr__(self):
         indent = '\n  '
@@ -131,6 +124,10 @@ class SExpression:
             ',{0}**{1}'.format(indent, repr(self.kwargs).replace('\n', indent))
             if self.kwargs else '')
 
+def s_eval(element, scope):
+    if hasattr(element,'s_eval'):
+        return element.s_eval(scope)
+    return element
 
 class SymbolError(NameError):
     pass
@@ -162,13 +159,13 @@ class Quote:
 def _private():
     import sys
     if sys.version_info[0] == 2:
-        import UserString
+        from UserString import UserString
     else:
         from collections import UserString
     from keyword import iskeyword
 
     # noinspection PyShadowingNames
-    class SymbolType(UserString):
+    class SymbolType(UserString, str):
         """
         Symbols for S-expressions.
 
@@ -223,7 +220,8 @@ def _private():
             >>> '1' + S.foo
             SymbolType('1foo')
             """
-            if iskeyword(self) or not self[0].isalpha() or not self[1:].replace('_', 'X').isalnum(): # or not self.isidentifier():
+            # or not self.isidentifier():
+            if iskeyword(self) or not self[0].isalpha() or not self[1:].replace('_', 'X').isalnum():
                 return 'SymbolType(%s)' % repr(self.data)
             return 'S.' + self.data
 
@@ -321,7 +319,7 @@ def macro(func):
     In S-expressions, macros are given any S-expressions
     unevaluated, then the result is evaluated.
     """
-    func.__macro__ = None
+    func._macro_ = None
     return func
 
 # def GENX(func,iterable,predicate):

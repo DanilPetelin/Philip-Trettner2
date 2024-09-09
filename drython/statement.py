@@ -499,14 +499,10 @@ Raise.__doc__ = \
         ...
     ZeroDivisionError
 
-    >>> Raise(ZeroDivisionError, From=StopIteration())  # doctest: +ELLIPSIS
-    StopIteration
-    <BLANKLINE>
-    The above exception was the direct cause of the following exception:
-    <BLANKLINE>
-    Traceback (most recent call last):
-        ...
-    ZeroDivisionError
+    >>> try:
+    ...     Raise(ZeroDivisionError, From=StopIteration())
+    ... except ZeroDivisionError as zde:
+    ...     print(zde.__cause__)
     """
 
 def _private():

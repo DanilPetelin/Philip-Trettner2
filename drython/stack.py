@@ -40,7 +40,7 @@ class Stack:
         assert set(rest.keys()) <= fset('rest')
         self.head = rest.get('rest', None)
         for e in args:
-            if hasattr(e, '__combinator__'):
+            if hasattr(e, '_combinator_'):
                 self.head = e(self).head
             else:
                 self.head = (self.head, e)
@@ -178,7 +178,7 @@ class Combinator:
     A list containing combinators is not itself a combinator, but a kind of
     quoted program. Some combinators consume these quoted programs.
     """
-    __combinator__ = None
+    _combinator_ = None
 
     def __init__(self, func):
         self.func = func
