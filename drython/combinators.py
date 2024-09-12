@@ -18,10 +18,10 @@ Stack combinators.
 
 supports import *
 """
+from __future__ import absolute_import, division, print_function
 
-
-import _collections_abc
 from itertools import permutations
+import collections
 
 from drython.core import List
 from drython.stack import Combinator, defcombinator, Stack
@@ -39,8 +39,8 @@ _exclude_from__all__ = set(globals().keys())
 def pop(stack):
     """
     discards the top of the stack
-    >>> Stack(..., 'a', pop)
-    Stack(Ellipsis,)
+    >>> Stack('...', 'a', pop)
+    Stack('...',)
     """
     stack, a = stack.pop()
     return stack
@@ -50,8 +50,8 @@ def pop(stack):
 def dup(stack):
     """
     duplicates the top of the stack
-    >>> Stack(..., 'a', dup)
-    Stack(Ellipsis, 'a', 'a')
+    >>> Stack('...', 'a', dup)
+    Stack('...', 'a', 'a')
     """
     return stack.push(stack.peek())
 
@@ -66,8 +66,8 @@ def nop(stack):
 def swap(stack):
     """
     swaps the top two elements of the stack
-    >>> Stack(..., 'a', 'b', swap)
-    Stack(Ellipsis, 'b', 'a')
+    >>> Stack('...', 'a', 'b', swap)
+    Stack('...', 'b', 'a')
     """
     stack, a, b = stack.pop(2)
     return stack.push(b, a)
@@ -83,8 +83,8 @@ for _cs in permutations('abc'):
 def {0}(stack):
     """
     permutes the top three elements of the stack,
-    >>> Stack(..., 'a', 'b', 'c', {0})
-    Stack(Ellipsis, '{1}', '{2}', '{3}')
+    >>> Stack('...', 'a', 'b', 'c', {0})
+    Stack('...', '{1}', '{2}', '{3}')
     """
     stack, a, b, c = stack.pop(3)
     return stack.push({1},{2},{3})
@@ -103,8 +103,8 @@ for _cs in permutations('abcd'):
 def {0}(stack):
     """
     permutes the top four elements of the stack,
-    >>> Stack(..., 'a', 'b', 'c', 'd', {0})
-    Stack(Ellipsis, '{1}', '{2}', '{3}', '{4}')
+    >>> Stack('...', 'a', 'b', 'c', 'd', {0})
+    Stack('...', '{1}', '{2}', '{3}', '{4}')
     """
     stack, a, b, c, d = stack.pop(4)
     return stack.push({1},{2},{3},{4})
@@ -118,8 +118,8 @@ del _cs
 def popd(stack):
     """
     pops one deeper
-    >>> Stack(..., 'a', 'b', popd)
-    Stack(Ellipsis, 'b')
+    >>> Stack('...', 'a', 'b', popd)
+    Stack('...', 'b')
     """
     stack, a, b = stack.pop(2)
     return stack.push(b)
@@ -130,8 +130,8 @@ def popd(stack):
 def dupd(stack):
     """
     duplicates one deeper
-    >>> Stack(..., 'a', 'b', dupd)
-    Stack(Ellipsis, 'a', 'a', 'b')
+    >>> Stack('...', 'a', 'b', dupd)
+    Stack('...', 'a', 'a', 'b')
     """
     stack, a, b = stack.pop(2)
     return stack.push(a, a, b)
@@ -145,12 +145,15 @@ def dupd(stack):
 @Combinator
 def quote(stack):
     """
-    wraps the top n elements in a list
+    wraps the top n elements in a tuple
     >>> Stack('a','b','c',2,quote)
-    Stack('a', ['b', 'c'])
+    Stack('a', ('b', 'c'))
     """
     stack, depth = stack.pop()
-    stack, *args = stack.pop(depth)
+    # stack, *args = stack.pop(depth)
+    stack_args = stack.pop(depth)
+    stack = stack_args[0]
+    args = stack_args[1:]
     return stack.push(args)
 
 
@@ -188,7 +191,7 @@ def do(stack):
     Any Mapping will do for the keywords dictionary
     """
     stack, kwargs, func = stack.pop(2)
-    if isinstance(kwargs, _collections_abc.Mapping):
+    if isinstance(kwargs, collections.Mapping):
         stack, args = stack.pop()
         return stack.push(func(*args, **kwargs))
     return stack.push(func(*kwargs))  # kwargs was just args

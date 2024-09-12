@@ -62,7 +62,7 @@ Multiple exits are available via let/progn/Return()
 
 See stack.Def and macros.Lx for two alternative `def` substitutes.
 """
-
+from __future__ import absolute_import, division, print_function
 # To avoid circular dependencies in this package,
 # statement.py shall depend only on the core.py module
 
@@ -199,6 +199,7 @@ def _private():
         2 1
         """
 
+    from drython.core import fset
     global Return
 
     class Return(LabeledException):
@@ -239,12 +240,13 @@ def _private():
         42
         """
 
-        def __init__(self, result=None, *results, label=None):
+        def __init__(self, result=None, *results, **label):
+            assert set(label.keys()) <= fset('label')
             if results:
                 self.result = (result,) + results
             else:
                 self.result = result
-            super().__init__(label=label)
+            LabeledException.__init__(self, label.get('label', None))
 
 
 # IntelliJ requires individual top-level assignments to detect globals
@@ -257,7 +259,7 @@ del _private
 
 # a Smalltalk-like implementation of Lisp's COND.
 # noinspection PyPep8Naming
-def Elif(*thunks, Else=Pass):
+def Elif(*thunks, **Else):
     """
     Cascading if. The args are paired. Pairs are checked in order.
     If the head evaluates to true, the second is called. If no heads are true,
@@ -291,103 +293,98 @@ def Elif(*thunks, Else=Pass):
     but Elif may be easier to use for deep nesting.
     """
     assert len(thunks) % 2 == 0
+    assert set(Else.keys()) <= frozenset(['Else'])
     for predicate, thunk in zip(*2 * (iter(thunks),)):
         if predicate():
             return thunk()
-    return Else()
+    return Else.get('Else', Pass)()
 
+def unstar(func):
+    """
+    Converts a multiple-argument function to a function of one iterable.
+    """
+    return lambda arg: func(*arg)
 
-def _private():
-    from inspect import signature
-    from inspect import Parameter
+def un2star(func):
+    """
+    Converts a multiple-argument function to a function of one mapping
+    """
+    return lambda kwargs: func(**kwargs)
 
-    _positional = (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD)
+def star(func):
+    return lambda *args: func(args)
 
-    global For
+def twostar(func):
+    return lambda **kwargs: func(kwargs)
 
-    # noinspection PyPep8Naming,PyShadowingNames
-    def For(iterable, func, Else=Pass, *, label=None):
-        """
-        Unpacks each element from iterable and applies func to it.
-        Unlike map() (and like `for`) For is strict, not lazy;
-        it is not a generator and evaluation begins immediately.
-        The element is not unpacked for a func with a single
-        positional arg, which makes For behave more like `for`.
+# noinspection PyPep8Naming,PyShadowingNames
+def For(iterable, func, Else=Pass, label=None):
+    """
+    Unpacks each element from iterable and applies func to it.
+    Unlike map() (and like `for`) For is strict, not lazy;
+    it is not a generator and evaluation begins immediately.
+    The element is not unpacked for a func with a single
+    positional arg, which makes For behave more like `for`.
 
-        With normal unpacking
-        >>> For({'key':'value'}.items(), lambda k, v:
-        ...         (print(k),
-        ...          print(v)))
-        key
-        value
-        
-        Without unpacking for a 1-arg func
-        >>> For({'a':'A'}.items(), lambda pair:
-        ...         print(pair))
-        ('a', 'A')
+    With normal unpacking
+    >>> For({'key':'value'}.items(), unstar(lambda k, v:
+    ...         (print(k),
+    ...          print(v))))
+    key
+    value
 
-        For can nest
-        >>> For('ab', lambda i:
-        ...     For('AB', lambda j:
-        ...         print(i, j)))
-        a A
-        a B
-        b A
-        b B
+    Without unpacking for a 1-arg func
+    >>> For({'a':'A'}.items(), lambda pair:
+    ...         print(pair))
+    ('a', 'A')
 
-        For also has an optional Else thunk, and supports labeled
-        Break and Continue.
-        >>> For(range(99), lambda i:
-        ...       print(i) if i<4 else Break(),
-        ...     Else=lambda:
-        ...       print("not found"))
-        0
-        1
-        2
-        3
-        >>> For(range(2), lambda i:
-        ...       print(i) if i<4 else Break(),
-        ...     Else=lambda:
-        ...       print("not found"))
-        0
-        1
-        not found
-        """
-        assert callable(Else)
-        params = signature(func).parameters
-        try:
-            # check for 1-arg positional func
-            if len(params) == 1 and next(iter(params.items()))[1].kind in _positional:
-                for e in iterable:
-                    try:
-                        func(e)  # doesn't unpack
-                    except Continue as c:
-                        c.handle(label)
-            else:
-                for e in iterable:
-                    try:
-                        func(*e)  # note the *
-                    except Continue as c:
-                        c.handle(label)
-        except Break as b:
-            b.handle(label)
-            return  # skip Else() on Break
-        Else()
+    For can nest
+    >>> For('ab', lambda i:
+    ...     For('AB', lambda j:
+    ...         print(i, j)))
+    a A
+    a B
+    b A
+    b B
 
-
-For = None
-_private()
-del _private
+    For also has an optional Else thunk, and supports labeled
+    Break and Continue.
+    >>> For(range(99), lambda i:
+    ...       print(i) if i<4 else Break(),
+    ...     Else=lambda:
+    ...       print("not found"))
+    0
+    1
+    2
+    3
+    >>> For(range(2), lambda i:
+    ...       print(i) if i<4 else Break(),
+    ...     Else=lambda:
+    ...       print("not found"))
+    0
+    1
+    not found
+    """
+    try:
+        for e in iterable:
+            try:
+                func(e)
+            except Continue as c:
+                c.handle(label)
+    except Break as b:
+        b.handle(label)
+        return  # skip Else() on Break
+    Else()
 
 
 def _private():
     from importlib import import_module
-    from drython.core import Tuple
+    from drython.core import Tuple, fset
 
     global Import
 
     # noinspection PyPep8Naming
-    def Import(item, *items, package=None, From=None):
+    def Import(item, *items, **package_From):
         """
         convenience function wrapping importlib.import_module()
 
@@ -405,7 +402,7 @@ def _private():
         True
 
         # from collections.abc import Set
-        >>> Set = Import('Set', From='collections.abc')
+        >>> Set = Import('Set', From='collections')
         >>> Set == abc.Set
         True
 
@@ -414,6 +411,9 @@ def _private():
         >>> Stack(1,2,op(sub)).peek()
         -1
         """
+        assert set(package_From.keys()) <= fset('package', 'From')
+        package = package_From.get('package', None)
+        From = package_From.get('From', None)
         if items:
             items = Tuple(item, *items)
         if package:
@@ -436,20 +436,74 @@ _private()
 del _private
 
 
-# noinspection PyPep8Naming
-def Raise(ex, From=None):
+def Raise(ex=None, From=Ellipsis):
+    if ex:
+        if From is not Ellipsis:
+            if ex.__class__ == type:
+                ex = ex()
+            # raise ex from From
+            ex.__cause__ = From
+        raise ex
+    raise
+
+
+import sys
+if sys.version_info[0] >= 3:
+    exec("""\
+def Raise(ex=None, From=Ellipsis):
+    if ex:
+        if From is not Ellipsis:
+            raise ex from From
+        raise ex
+    raise
+""")
+del sys
+
+
+# _private()
+# del _private
+
+Raise.__doc__ = \
     """
     raises an exception.
+    >>> Raise(ZeroDivisionError)
+    Traceback (most recent call last):
+        ...
+    ZeroDivisionError
+
+
+    >>> Raise(ZeroDivisionError("Just a test!"))
+    Traceback (most recent call last):
+        ...
+    ZeroDivisionError: Just a test!
+
     Unlike a naked raise statement, this works anywhere
     an expression is allowed, which has some unexpected uses:
     >>> from itertools import count
     >>> list(i if i<10 else Raise(StopIteration) for i in count())
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    """
-    if From:
-        raise ex from From
-    raise ex
 
+    empty raise also works as expected
+    >>> try:
+    ...     1/0
+    ... except ZeroDivisionError:
+    ...     print('zde!')
+    ...     Raise()
+    Traceback (most recent call last):
+        ...
+    ZeroDivisionError: division by zero
+
+    raise ... from is also supported, even experimentally in 2.7
+    >>> Raise(ZeroDivisionError, From=None)
+    Traceback (most recent call last):
+        ...
+    ZeroDivisionError
+
+    >>> try:
+    ...     Raise(ZeroDivisionError, From=StopIteration())
+    ... except ZeroDivisionError as zde:
+    ...     print(zde.__cause__)
+    """
 
 def _private():
     from drython.core import partition
@@ -457,7 +511,7 @@ def _private():
     global Try
 
     # noinspection PyPep8Naming,PyShadowingNames
-    def Try(thunk, *Except, Else=None, Finally=Pass):
+    def Try(thunk, *Except, **ElseFinally):
         """
         Try() returns the thunk's result normally
         >>> Try(lambda: 1+1)
@@ -517,9 +571,12 @@ def _private():
 
         to catch any exception, like the final `except:`, use BaseException.
         """
+        assert set(ElseFinally.keys()) <= frozenset(['Else', 'Finally'])
         assert len(Except) % 2 == 0
-        assert all(issubclass(x, BaseException) and callable(c)
+        assert all(issubclass(x, BaseException)
                    for x, c in partition(Except))
+        Else = ElseFinally.get('Else', None)
+        Finally = ElseFinally.get('Finally', Pass)
         try:
             res = thunk()
         except BaseException as ex:
@@ -527,7 +584,7 @@ def _private():
                 if isinstance(ex, ex_type):
                     return ex_handler(ex)
             else:
-                raise ex
+                raise
         else:
             if Else:
                 res = Else()
@@ -542,7 +599,7 @@ del _private
 
 # TODO: doctest While, labeled/unlabeled break/continue
 # noinspection PyPep8Naming
-def While(predicate, thunk, label=None, *, Else=Pass):
+def While(predicate, thunk, label=None, Else=Pass):
     """
     >>> from operator import add
     >>> spam = Var(4)
@@ -609,6 +666,8 @@ class Var:
 
         lock = Lock()
 
+        e = [e]
+
         def var_set(new, oper=None):
             """
             sets Var's element. Optionally augment assignments with oper.
@@ -624,17 +683,16 @@ class Var:
             # Best keep this block as simple as possible.
             # Var is a useful alternative to primitive locks
             # in many cases.
-            nonlocal e
             with lock:
                 if oper:
-                    e = oper(e, new)
+                    e[0] = oper(e[0], new)
                 else:
-                    e = new
-                res = e
+                    e[0] = new
+                res = e[0]
             return res
 
         self.set = var_set
-        self._get = lambda: e  # readonly
+        self._get = lambda: e[0]  # readonly
 
     @property
     def e(self):
@@ -746,10 +804,11 @@ def delitem(obj, index):
     return obj
 
 
-from types import MappingProxyType
+
+from drython.core import Empty
 
 
-def let(body, *, args=(), kwargs=MappingProxyType({}), label=None):
+def let(body, args=(), kwargs=Empty(), label=None):
     """
     immediately calls body.
     can catch a Return exception and returns its result.
@@ -778,7 +837,7 @@ def let(body, *, args=(), kwargs=MappingProxyType({}), label=None):
         return r.result
 
 
-del MappingProxyType
+del Empty
 
 
 def progn(*body):

@@ -22,14 +22,14 @@ from expression.s_expression import S
 """
 # s_expression.py does not depend on other modules in this package
 # future versions may safely depend on core.py and statement.py
-from abc import ABCMeta, abstractmethod
+from __future__ import absolute_import, division, print_function
 from operator import add
-from core import SEvaluable
 
-from statement import Var
+from drython.core import Empty
+from drython.statement import Var, Raise
 
 
-class SExpression(SEvaluable):
+class SExpression:
     """
     S-expressions are executable data structures for metaprogramming.
 
@@ -45,6 +45,8 @@ class SExpression(SEvaluable):
       20,
       4)
     >>> spam.s_eval()  # same as >>> add(20,4)
+    24
+    >>> spam.s_eval()  # works more than once
     24
     >>> spam = S(add,S(mul,4,10),2)  # represents >>> add(mul(4, 10), 2)  # 4*10 + 2
     >>> spam.s_eval()
@@ -100,25 +102,17 @@ class SExpression(SEvaluable):
     """
 
     def __init__(self, func, *args, **kwargs):
-        # non-SEvaluables are quoted so they s_eval to themselves
-        self.qfunc = Quote.of(func)
-        self.qargs = map(Quote.of, args)
-        self.qkwargs = {k: Quote.of(v) for k, v in kwargs.items()}
-        # keep unquoted data for __repr__ and macros
         self.func = func
         self.args = args
         self.kwargs = kwargs
 
     def s_eval(self, scope=None):
-        func = self.qfunc.s_eval(scope)
-        if hasattr(func, '__macro__'):
-            # return try_eval(func(*self.args, **self.kwargs), scope)
-            form = func(*self.args, **self.kwargs)
-            # return form.s_eval(scope) if isinstance(form, SEvaluable) else form
-            return Quote.of(form).s_eval(scope)
+        func = s_eval(self.func, scope)
+        if hasattr(func, '_macro_'):
+            return s_eval(func(*self.args, **self.kwargs), scope)
         return func(
-            *(a.s_eval(scope) for a in self.qargs),
-            **{k: v.s_eval(scope) for k, v in self.qkwargs.items()})
+            *(s_eval(a, scope) for a in self.args),
+            **{k: s_eval(v, scope) for k, v in self.kwargs.items()})
 
     def __repr__(self):
         indent = '\n  '
@@ -130,12 +124,16 @@ class SExpression(SEvaluable):
             ',{0}**{1}'.format(indent, repr(self.kwargs).replace('\n', indent))
             if self.kwargs else '')
 
+def s_eval(element, scope):
+    if hasattr(element,'s_eval'):
+        return element.s_eval(scope)
+    return element
 
 class SymbolError(NameError):
     pass
 
 
-class Quote(SEvaluable):
+class Quote:
     __slots__ = ('item',)
 
     def __init__(self, item):
@@ -153,25 +151,28 @@ class Quote(SEvaluable):
         Unlike the usual __init__(), of() will not
         quote the item if it is already SEvaluable
         """
-        if isinstance(item, SEvaluable):
-        # if hasattr(item, 's_eval'):
+        if hasattr(item, 's_eval'):
             return item
         return cls(item)
 
 
 def _private():
-    from collections import UserString
-    from keyword import kwlist as _keyword_set
-
-    _keyword_set = set(_keyword_set)
+    import sys
+    if sys.version_info[0] == 2:
+        from UserString import UserString
+    else:
+        from collections import UserString
+    from keyword import iskeyword
 
     # noinspection PyShadowingNames
-    class SymbolType(UserString, str, SEvaluable):
+    class SymbolType(UserString, str):
         """
         Symbols for S-expressions.
 
         A Symbol represents a potential Python identifier.
         >>> spam = 1
+        >>> print(spam)
+        1
         >>> no_symbol = S(print,spam)
         >>> no_symbol  # spam already resolved to 1
         S(<built-in function print>,
@@ -206,9 +207,9 @@ def _private():
         S.quuxnorf
         """
 
-        def __init__(self, name):
-            super().__init__(name)
-            # self.__name__ = 'SymbolType'
+        # def __init__(self, name):
+        #     super().__init__(name)
+        #     # self.__name__ = 'SymbolType'
 
         def __repr__(self):
             """
@@ -219,24 +220,23 @@ def _private():
             >>> '1' + S.foo
             SymbolType('1foo')
             """
-            if not self.data.isidentifier() or self.data in _keyword_set:
+            # or not self.isidentifier():
+            if iskeyword(self) or not self[0].isalpha() or not self[1:].replace('_', 'X').isalnum():
                 return 'SymbolType(%s)' % repr(self.data)
             return 'S.' + self.data
 
-        from types import MappingProxyType
-
-        def s_eval(self, scope=MappingProxyType({})):
+        def s_eval(self, scope=Empty()):
             """ looks up itself in scope """
             try:
                 return scope[self]
             except KeyError as ex:
-                raise SymbolError(
+                Raise(SymbolError(
                     'Symbol %s is not bound in the given scope' % repr(self)
-                ) from ex
+                ), From=ex)
             except TypeError as ex:
-                raise SymbolError(
+                Raise(SymbolError(
                     'Symbol %s is not bound in the given scope' % repr(self)
-                ) from ex
+                ), From=ex)
 
     return SymbolType
 
@@ -299,7 +299,10 @@ def _private():
         def __call__(self, func, *args, **kwargs):
             return SExpression(func, *args, **kwargs)
 
-        def __getattribute__(self, attr):
+        # def __getattribute__(self, attr):
+        #     return SymbolType(attr)
+
+        def __getattr__(self, attr):
             return SymbolType(attr)
 
     return SSyntax()
@@ -316,7 +319,7 @@ def macro(func):
     In S-expressions, macros are given any S-expressions
     unevaluated, then the result is evaluated.
     """
-    func.__macro__ = None
+    func._macro_ = None
     return func
 
 # def GENX(func,iterable,predicate):

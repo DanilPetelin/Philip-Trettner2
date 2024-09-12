@@ -15,16 +15,18 @@
 """
 Stack-based combinator algebra for Python.
 """
-
-from functools import lru_cache, update_wrapper
+from __future__ import absolute_import, division, print_function
+from functools import update_wrapper
 from collections import deque
 
-from .core import Tuple
+from drython.core import Tuple, fset
 
 
 # To avoid circular dependencies in this package,
 # stack.py shall depend only on the core.py and statement.py modules.
 # statement.py is not required in the current version.
+from drython.statement import Raise
+
 
 class Stack:
     """
@@ -34,10 +36,11 @@ class Stack:
     Stack applies the combinator to elements from the stack.
     """
 
-    def __init__(self, *args, rest=None):
-        self.head = rest
+    def __init__(self, *args, **rest):
+        assert set(rest.keys()) <= fset('rest')
+        self.head = rest.get('rest', None)
         for e in args:
-            if isinstance(e, Combinator):
+            if hasattr(e, '_combinator_'):
                 self.head = e(self).head
             else:
                 self.head = (self.head, e)
@@ -137,7 +140,7 @@ class Stack:
                 xs.appendleft(head[1])
                 head = head[0]
         except TypeError as te:
-            raise IndexError('Stack underflow') from te
+            Raise(IndexError('Stack underflow'), From=te)
         return Tuple(Stack(rest=head), *xs)
 
     def peek(self, depth=None):
@@ -145,11 +148,11 @@ class Stack:
         >>> Stack(1,2,3).peek()
         3
         >>> Stack(1,2,3).peek(1)
-        [3]
+        (3,)
         >>> Stack(1,2,3).peek(2)  # order preserved
-        [2, 3]
+        (2, 3)
         >>> Stack(1,2,3).peek(3)
-        [1, 2, 3]
+        (1, 2, 3)
         >>> try:
         ...     Stack(1,2,3).peek(4)
         ...     assert False
@@ -158,7 +161,7 @@ class Stack:
         Stack underflow
         """
         if depth:
-            stack, *res = self.pop(depth)
+            res = self.pop(depth)[1:]
         else:
             stack, res = self.pop()
         return res
@@ -175,6 +178,7 @@ class Combinator:
     A list containing combinators is not itself a combinator, but a kind of
     quoted program. Some combinators consume these quoted programs.
     """
+    _combinator_ = None
 
     def __init__(self, func):
         self.func = func
@@ -188,7 +192,7 @@ class Combinator:
         return self.func.__name__
 
 
-@lru_cache()  # memoized
+# @lru_cache()  # memoized
 def op(func, depth=2):
     """
     converts a binary Python function into a combinator
@@ -215,13 +219,15 @@ def op(func, depth=2):
             if func.__name__.startswith('<'):
                 name = repr(func)
             if depth == 2:
-                return "op!(%s)" % name
-            return "op!({0}, {1})".format(name, depth)
+                return "op(%s)" % name
+            return "op({0}, {1})".format(name, depth)
 
     @OpCombinator
     # @Combinator
     def op_combinator(stack):
-        stack, *args = stack.pop(depth)
+        stack_args = stack.pop(depth)
+        stack = stack_args[0]
+        args = stack_args[1:]
         return stack.push(func(*args))
 
     # return Combinator(op_combinator)
@@ -257,17 +263,10 @@ class Def:
     Def(dup, op(mul))
     """
 
-    def __init__(self, *elements, minargs=None, maxargs=None):
-        self.elements, self.min_args, self.max_args = elements, minargs, maxargs
+    def __init__(self, *elements):
+        self.elements = elements
 
     def __call__(self, *args):
-        if self.min_args is not None and len(args) < self.min_args:
-            raise TypeError("{0}() missing {1} required positional arguments",
-                            repr(self), self.min_args - len(args))
-        if self.max_args is not None and len(args) > self.max_args:
-            raise TypeError(
-                "{0}() takes {1} positional arguments, but {2} were given",
-                repr(self), self.max_args, len(args))
         return Stack(*args).push(*self.elements).peek()
 
     def __repr__(self):

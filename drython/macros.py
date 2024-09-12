@@ -13,12 +13,13 @@
 # limitations under the License.
 
 # TODO: docstring macros.py
+from __future__ import absolute_import, division, print_function
 
-from _collections_abc import Mapping
+from collections import Mapping
 
-from .core import partition, SEvaluable
-from .s_expression import S, Quote, macro
-from .statement import Elif, progn
+from drython.core import partition
+from drython.s_expression import S, Quote, macro
+from drython.statement import Elif, progn, Raise
 
 
 # macros.py depends on core.py, s_expression.py, and statement.py
@@ -45,18 +46,18 @@ class Scope(Mapping):
             try:
                 return self.parent[name]
             except TypeError as err:
-                raise NameError('name %s is not defined in scope' % repr(name)) from err
+                Raise(NameError('name %s is not defined in scope' % repr(name)), From=err)
             except KeyError as err:
-                raise NameError('name %s is not defined in scope' % repr(name)) from err
+                Raise(NameError('name %s is not defined in scope' % repr(name)), From=err)
 
     def __setitem__(self, name, val):
         if name in self.nonlocals:
             try:
                 self.parent[name] = val
             except KeyError as err:
-                raise NameError('nonlocal %s not found' % repr(name)) from err
+                Raise(NameError('nonlocal %s not found' % repr(name)), From=err)
             except TypeError as err:
-                raise NameError('nonlocal %s not found' % repr(name)) from err
+                Raise(NameError('nonlocal %s not found' % repr(name)), From=err)
         else:
             self.vars[name] = val
 
@@ -65,36 +66,36 @@ class Scope(Mapping):
         self.nonlocals |= set(names)
 
 
-class SLambda(SEvaluable):
-    def __init__(self, symbols, body, varg, kwonlys, kwvarg, defaults):
-        self.body = body
-        self.varg = varg
-        self.kwvarg = kwvarg
-        self.symbols, self.kwolnlys, self.defaults = \
-            map(Quote.of, (symbols, kwonlys, defaults))
+# class SLambda:
+#     def __init__(self, symbols, body, varg, kwonlys, kwvarg, defaults):
+#         self.body = body
+#         self.varg = varg
+#         self.kwvarg = kwvarg
+#         self.symbols, self.kwolnlys, self.defaults = \
+#             map(Quote.of, (symbols, kwonlys, defaults))
+#
+#     def s_eval(self, scope=None):
+#         symbols, kwonlys, defaults = (s.s_eval(scope) for s in (
+#             self.symbols, self.kwolnlys, self.defaults))
+#         kwonlys = set(kwonlys)
+#         symbols_set = set(symbols)
+#
+#         def lx(*args, **kwargs):
+#             kwvals = dict(defaults)
+#             kwvals[self.kwvarg] = {k: v for k, v in kwargs.items()
+#                                    if k not in symbols_set if k not in kwonlys}
+#             kwvals[self.varg] = args[len(symbols):]
+#             kwvals.update({k: v for k, v in kwargs.items() if k in kwonlys})
+#
+#             return self.body.s_eval(
+#                 Scope(scope,
+#                       dict(zip(symbols, args)),
+#                       kwvals))
+#
+#         return lx
 
-    def s_eval(self, scope=None):
-        symbols, kwonlys, defaults = (s.s_eval(scope) for s in (
-            self.symbols, self.kwolnlys, self.defaults))
-        kwonlys = set(kwonlys)
-        symbols_set = set(symbols)
 
-        def lx(*args, **kwargs):
-            kwvals = dict(defaults)
-            kwvals[self.kwvarg] = {k: v for k, v in kwargs.items()
-                                   if k not in symbols_set if k not in kwonlys}
-            kwvals[self.varg] = args[len(symbols):]
-            kwvals.update({k: v for k, v in kwargs.items() if k in kwonlys})
-
-            return self.body.s_eval(
-                Scope(scope,
-                      dict(zip(symbols, args)),
-                      kwvals))
-
-        return lx
-
-
-class SLambda1(SEvaluable):
+class SLambda1:
     def __init__(self, symbol, body):
         self.body = body
         self.symbol = symbol
@@ -112,24 +113,24 @@ def L1(symbol, *body):
     return SLambda1(symbol, S(progn, *body))
 
 
-# symbols, vargs, kwonly, kwvargs
-# noinspection PyPep8Naming
-@macro
-def Lx(symbols, *body, varg=None, kwonlys=(), kwvarg=None, defaults=()):
-    """
-    lambda expression.
-    >>> from operator import add
-    >>> plus = S(Lx,(S.x,S.y),S(add,S.x,S.y))
-    >>> S(plus,40,2).s_eval()
-    42
-    >>> S(plus,20,4).s_eval()
-    24
-    """
-    # TODO: test varg, kwonlys, kwvarg, defaults
-    return SLambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
+# # symbols, vargs, kwonly, kwvargs
+# # noinspection PyPep8Naming
+# @macro
+# def Lx(symbols, *body, varg=None, kwonlys=(), kwvarg=None, defaults=()):
+#     """
+#     lambda expression.
+#     >>> from operator import add
+#     >>> plus = S(Lx,(S.x,S.y),S(add,S.x,S.y))
+#     >>> S(plus,40,2).s_eval()
+#     42
+#     >>> S(plus,20,4).s_eval()
+#     24
+#     """
+#     # TODO: test varg, kwonlys, kwvarg, defaults
+#     return SLambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
 
 
-class SSetQ(SEvaluable):
+class SSetQ:
     def __init__(self, pairs):
         self.pairs = ((q, Quote.of(x)) for q, x in partition(pairs))
 
@@ -151,7 +152,7 @@ def setq(*pairs):
     return SSetQ(pairs)
 
 
-class SNonlocal(SEvaluable):
+class SNonlocal:
     def __init__(self, symbols):
         self.symbols = symbols
 
@@ -165,7 +166,7 @@ def Nonlocal(*symbols):
     return SNonlocal(symbols)
 
 
-class SThunk(SEvaluable):
+class SThunk:
     def __init__(self, body):
         self.body = Quote.of(body)
 
@@ -202,14 +203,14 @@ def s_eval(body):
     return SEval(body)
 
 
-class SEval(SEvaluable):
+class SEval:
     def __init__(self, body):
         self.body = body
 
     def s_eval(self, scope):
-        if isinstance(self.body, SEvaluable):
+        if hasattr(self.body, 's_eval'):
             res = self.body.s_eval(scope)
-            if isinstance(res, SEvaluable):
+            if hasattr(res, 's_eval'):
                 return res.s_eval(scope)
             return res
         return self.body
@@ -217,7 +218,9 @@ class SEval(SEvaluable):
 
 # noinspection PyPep8Naming
 @macro
-def cond(*rest, Else=None):
+def cond(*rest, **Else):
+    assert Else.keys() <= frozenset(['Else'])
+    Else = Else.get('Else', None)
     return S(Elif,
              *map(lambda x: S(thunk,
                               x),
