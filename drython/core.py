@@ -42,53 +42,78 @@ class Empty(tuple, Mapping, Set):
         return self.__class__.__name__ + '()'
 
 
-def Tuple(*args):
+def star(func):
     """
-    returns args as a tuple
-    >>> Tuple(1, 2, 3)
-    (1, 2, 3)
+    Converts a multiple-argument function to a function of one iterable.
+    >>> nums = [1, 2, 3]
+    >>> print(*nums)
+    1 2 3
+    >>> star(print)(nums)
+    1 2 3
     """
-    return args
+    return lambda arg: func(*arg)
 
 
-# noinspection PyPep8Naming
-def List(*args):
+def unstar(func):
     """
-    returns args as a list
-    >>> List(1, 2, 3)
+    Converts a fuction of one iterable to a function of its elements.
+    >>> list((1, 2, 3))
+    [1, 2, 3]
+    >>> unstar(list)(1, 2, 3)
     [1, 2, 3]
     """
-    return list(args)
+    return lambda *args: func(args)
 
 
-# noinspection PyPep8Naming
-def Set(*args):
+def stars(func):
     """
-    returns args as a set
-    >>> Set(1, 2, 3) == {1, 2, 3}
-    True
+    Converts a multiple-argument function to a function of one mapping
     """
-    return set(args)
+    return lambda kwargs: func(**kwargs)
 
 
-def fset(*args):
-    """
-    return args as a frozenset
-    >>> fset(1, 2, 3) == frozenset([1, 2, 3])
-    True
-    """
-    return frozenset(args)
+def unstars(func):
+    return lambda **kwargs: func(kwargs)
 
 
-# noinspection PyPep8Naming
-def Dict(*args):
+entuple = unstar(tuple)
+entuple.__doc__ = """\
+returns args as a tuple
+>>> entuple(1, 2, 3)
+(1, 2, 3)
+"""
+
+enlist = unstar(list)
+enlist.__doc__ = """\
+returns args as a list
+>>> enlist(1, 2, 3)
+[1, 2, 3]
+"""
+
+
+enset = unstar(set)
+enset.__doc__ = """\
+returns args as a set
+>>> enset(1, 2, 3) == {1, 2, 3}
+True
+"""
+
+efset = unstar(frozenset)
+efset.__doc__ = """\
+return args as a frozenset
+>>> efset(1, 2, 3) == frozenset([1, 2, 3])
+True
+"""
+
+
+def edict(*args):
     """
     pairs args and makes a dictionary with them
-    >>> Dict(1, 2)
+    >>> edict(1, 2)
     {1: 2}
-    >>> Dict(1, 2,  3, 4,  5, 6)[3]
+    >>> edict(1, 2,  3, 4,  5, 6)[3]
     4
-    >>> Dict(1, 2,
+    >>> edict(1, 2,
     ...      3, 4) == {1: 2, 3: 4}
     True
     """
@@ -192,13 +217,4 @@ def apply(func, *args, **kwargs):
     # TODO: doctest apply
     return (lambda a=(), kw=Empty():
             functools.partial(func, *args, **kwargs)(*a, **kw))
-
-# def unzip(iterable):
-#     """
-#     transpose the iterable.
-#     >>> list(unzip([(1, 2), (3, 4)]))
-#     [(1, 3), (2, 4)]
-#     """
-#     return zip(*iterable)
-
 

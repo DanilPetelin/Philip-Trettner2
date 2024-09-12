@@ -67,6 +67,11 @@ from __future__ import absolute_import, division, print_function
 # statement.py shall depend only on the core.py module
 
 
+from drython.core import entuple, efset, partition, Empty
+
+_exclude_from__all__ = set(globals().keys())
+
+
 def _private():
     class PassType:
         """
@@ -199,7 +204,6 @@ def _private():
         2 1
         """
 
-    from drython.core import fset
     global Return
 
     class Return(LabeledException):
@@ -241,7 +245,7 @@ def _private():
         """
 
         def __init__(self, result=None, *results, **label):
-            assert set(label.keys()) <= fset('label')
+            assert set(label.keys()) <= efset('label')
             if results:
                 self.result = (result,) + results
             else:
@@ -299,23 +303,7 @@ def Elif(*thunks, **Else):
             return thunk()
     return Else.get('Else', Pass)()
 
-def unstar(func):
-    """
-    Converts a multiple-argument function to a function of one iterable.
-    """
-    return lambda arg: func(*arg)
 
-def un2star(func):
-    """
-    Converts a multiple-argument function to a function of one mapping
-    """
-    return lambda kwargs: func(**kwargs)
-
-def star(func):
-    return lambda *args: func(args)
-
-def twostar(func):
-    return lambda **kwargs: func(kwargs)
 
 # noinspection PyPep8Naming,PyShadowingNames
 def For(iterable, func, Else=Pass, label=None):
@@ -326,17 +314,19 @@ def For(iterable, func, Else=Pass, label=None):
     The element is not unpacked for a func with a single
     positional arg, which makes For behave more like `for`.
 
-    With normal unpacking
-    >>> For({'key':'value'}.items(), unstar(lambda k, v:
+    funct must be 1-argument
+    >>> For({'a':'A'}.items(), lambda pair:
+    ...         print(pair))
+    ('a', 'A')
+
+    Use the star function for unpacking
+    >>> from drython.core import star
+    >>> For({'key':'value'}.items(), star(lambda k, v:
     ...         (print(k),
     ...          print(v))))
     key
     value
 
-    Without unpacking for a 1-arg func
-    >>> For({'a':'A'}.items(), lambda pair:
-    ...         print(pair))
-    ('a', 'A')
 
     For can nest
     >>> For('ab', lambda i:
@@ -379,7 +369,6 @@ def For(iterable, func, Else=Pass, label=None):
 
 def _private():
     from importlib import import_module
-    from drython.core import Tuple, fset
 
     global Import
 
@@ -398,12 +387,12 @@ def _private():
         >>> operator.add(1, 1)
         2
         >>> abc = Import('collections.abc')  # import collections.abc as abc
-        >>> hasattr(abc,'Set')
+        >>> hasattr(abc,'enset')
         True
 
-        # from collections.abc import Set
-        >>> Set = Import('Set', From='collections')
-        >>> Set == abc.Set
+        # from collections.abc import enset
+        >>> enset = Import('enset', From='collections')
+        >>> enset == abc.enset
         True
 
         # from .stack import Stack, op
@@ -411,11 +400,11 @@ def _private():
         >>> Stack(1,2,op(sub)).peek()
         -1
         """
-        assert set(package_From.keys()) <= fset('package', 'From')
+        assert set(package_From.keys()) <= efset('package', 'From')
         package = package_From.get('package', None)
         From = package_From.get('From', None)
         if items:
-            items = Tuple(item, *items)
+            items = entuple(item, *items)
         if package:
             import_module(package)  # really necessary?
         if From:
@@ -505,97 +494,87 @@ Raise.__doc__ = \
     ...     print(zde.__cause__)
     """
 
-def _private():
-    from drython.core import partition
+def Try(thunk, *Except, **ElseFinally):
+    """
+    Try() returns the thunk's result normally
+    >>> Try(lambda: 1+1)
+    2
 
-    global Try
+    Exception handlers are written as an exception type paired with
+    a function. The exception handlers are required to take an
+    argument, but they are not required to use it.
+    Try() returns the exception handler's result on exceptions.
+    This overrides both the normal thunk and else part's result.
+    Else is not evaluated after exceptions.
+    >>> Try(lambda:
+    ...         1/0,  # error
+    ...     ZeroDivisionError, lambda zdr: progn(
+    ...         print(zdr),
+    ...         'returns: take a limit!',),
+    ...     Finally=lambda:
+    ...         print('finally!'),
+    ...     Else=lambda:
+    ...         print('returns: or else!'))
+    division by zero
+    finally!
+    'returns: take a limit!'
 
-    # noinspection PyPep8Naming,PyShadowingNames
-    def Try(thunk, *Except, **ElseFinally):
-        """
-        Try() returns the thunk's result normally
-        >>> Try(lambda: 1+1)
-        2
+    Try() evaluates to the else part if provided.
+    >>> Try(lambda:
+    ...         0/1,  # allowed
+    ...     ZeroDivisionError, lambda zdr: progn(
+    ...         print(zdr),
+    ...         'take a limit!',),
+    ...     Finally=lambda:
+    ...         print('finally!'),
+    ...     Else=lambda:
+    ...         'returns: or else!')
+    finally!
+    'returns: or else!'
 
-        Exception handlers are written as an exception type paired with
-        a function. The exception handlers are required to take an
-        argument, but they are not required to use it.
-        Try() returns the exception handler's result on exceptions.
-        This overrides both the normal thunk and else part's result.
-        Else is not evaluated after exceptions.
-        >>> Try(lambda:
-        ...         1/0,  # error
-        ...     ZeroDivisionError, lambda zdr: progn(
-        ...         print(zdr),
-        ...         'returns: take a limit!',),
-        ...     Finally=lambda:
-        ...         print('finally!'),
-        ...     Else=lambda:
-        ...         print('returns: or else!'))
-        division by zero
-        finally!
-        'returns: take a limit!'
+    Try() never returns the result of Finally(), which is only
+    for side effects.
 
-        Try() evaluates to the else part if provided.
-        >>> Try(lambda:
-        ...         0/1,  # allowed
-        ...     ZeroDivisionError, lambda zdr: progn(
-        ...         print(zdr),
-        ...         'take a limit!',),
-        ...     Finally=lambda:
-        ...         print('finally!'),
-        ...     Else=lambda:
-        ...         'returns: or else!')
-        finally!
-        'returns: or else!'
+    Multiple exception handlers are allowed. They're checked
+    in order.
+    >>> Try(lambda:
+    ...         1/0,
+    ...     ZeroDivisionError, lambda zdr:
+    ...         print('by ZeroDivisionError'),
+    ...     Exception, lambda x:
+    ...         print('by Exception'),)
+    by ZeroDivisionError
+    >>> Try(lambda:
+    ...         1/0,
+    ...     Exception, lambda x:
+    ...         print('by Exception'),
+    ...     ZeroDivisionError, lambda zdr:
+    ...         print('by ZeroDivisionError'),)
+    by Exception
 
-        Try() never returns the result of Finally(), which is only
-        for side effects.
-
-        Multiple exception handlers are allowed. They're checked
-        in order.
-        >>> Try(lambda:
-        ...         1/0,
-        ...     ZeroDivisionError, lambda zdr:
-        ...         print('by ZeroDivisionError'),
-        ...     Exception, lambda x:
-        ...         print('by Exception'),)
-        by ZeroDivisionError
-        >>> Try(lambda:
-        ...         1/0,
-        ...     Exception, lambda x:
-        ...         print('by Exception'),
-        ...     ZeroDivisionError, lambda zdr:
-        ...         print('by ZeroDivisionError'),)
-        by Exception
-
-        to catch any exception, like the final `except:`, use BaseException.
-        """
-        assert set(ElseFinally.keys()) <= frozenset(['Else', 'Finally'])
-        assert len(Except) % 2 == 0
-        assert all(issubclass(x, BaseException)
-                   for x, c in partition(Except))
-        Else = ElseFinally.get('Else', None)
-        Finally = ElseFinally.get('Finally', Pass)
-        try:
-            res = thunk()
-        except BaseException as ex:
-            for ex_type, ex_handler in partition(Except):
-                if isinstance(ex, ex_type):
-                    return ex_handler(ex)
-            else:
-                raise
+    to catch any exception, like the final `except:`, use BaseException.
+    """
+    assert set(ElseFinally.keys()) <= frozenset(['Else', 'Finally'])
+    assert len(Except) % 2 == 0
+    assert all(issubclass(x, BaseException)
+               for x, c in partition(Except))
+    Else = ElseFinally.get('Else', None)
+    Finally = ElseFinally.get('Finally', Pass)
+    try:
+        res = thunk()
+    except BaseException as ex:
+        for ex_type, ex_handler in partition(Except):
+            if isinstance(ex, ex_type):
+                return ex_handler(ex)
         else:
-            if Else:
-                res = Else()
-        finally:
-            Finally()
-        return res
+            raise
+    else:
+        if Else:
+            res = Else()
+    finally:
+        Finally()
+    return res
 
-
-Try = None
-_private()
-del _private
 
 # TODO: doctest While, labeled/unlabeled break/continue
 # noinspection PyPep8Naming
@@ -805,7 +784,6 @@ def delitem(obj, index):
 
 
 
-from drython.core import Empty
 
 
 def let(body, args=(), kwargs=Empty(), label=None):
@@ -837,9 +815,6 @@ def let(body, args=(), kwargs=Empty(), label=None):
         return r.result
 
 
-del Empty
-
-
 def progn(*body):
     """
     returns its last argument.
@@ -860,3 +835,11 @@ def progn(*body):
     42
     """
     return body[-1]
+
+
+
+
+
+__all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]
+
+

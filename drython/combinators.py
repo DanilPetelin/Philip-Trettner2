@@ -23,7 +23,7 @@ from __future__ import absolute_import, division, print_function
 from itertools import permutations
 import collections
 
-from drython.core import List
+from drython.core import enlist
 from drython.stack import Combinator, defcombinator, Stack
 
 
@@ -206,7 +206,7 @@ def dip(stack):
 @Combinator
 def cons(stack):
     stack, p, q = stack.pop(2)
-    return stack.push(List(p, *q))
+    return stack.push(enlist(p, *q))
 
 
 @Combinator
@@ -247,7 +247,7 @@ def Bc(stack):
 @Combinator
 def Sc(stack):
     stack, p, q, r = stack.pop(3)
-    return stack.push(List(p, *q), p, *r)
+    return stack.push(enlist(p, *q), p, *r)
 
 
 # noinspection PyPep8Naming

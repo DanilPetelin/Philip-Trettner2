@@ -19,7 +19,7 @@ from __future__ import absolute_import, division, print_function
 from functools import update_wrapper
 from collections import deque
 
-from drython.core import Tuple, fset
+from drython.core import entuple, efset
 
 
 # To avoid circular dependencies in this package,
@@ -37,7 +37,7 @@ class Stack:
     """
 
     def __init__(self, *args, **rest):
-        assert set(rest.keys()) <= fset('rest')
+        assert set(rest.keys()) <= efset('rest')
         self.head = rest.get('rest', None)
         for e in args:
             if hasattr(e, '_combinator_'):
@@ -141,7 +141,7 @@ class Stack:
                 head = head[0]
         except TypeError as te:
             Raise(IndexError('Stack underflow'), From=te)
-        return Tuple(Stack(rest=head), *xs)
+        return entuple(Stack(rest=head), *xs)
 
     def peek(self, depth=None):
         """
@@ -205,11 +205,11 @@ def op(func, depth=2):
     20
 
     you can specify a different arity
-    >>> Stack(1,2,3,4,5,op(Tuple,4))
+    >>> Stack(1,2,3,4,5,op(entuple,4))
     Stack(1, (2, 3, 4, 5))
 
     but the default assumption is two arguments
-    >>> Stack(1,2,3,op(Tuple))
+    >>> Stack(1,2,3,op(entuple))
     Stack(1, (2, 3))
     """
 

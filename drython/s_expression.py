@@ -73,8 +73,8 @@ class SExpression:
       'test')]
 
     This does, since it uses another S-expression to make the list.
-    >>> from drython.core import List
-    >>> S(identity,S(List,S(print,'test'))).s_eval()
+    >>> from drython.core import enlist
+    >>> S(identity,S(enlist,S(print,'test'))).s_eval()
     test
     [None]
 
