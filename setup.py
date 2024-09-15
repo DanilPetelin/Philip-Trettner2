@@ -20,7 +20,7 @@ Programming Language :: Python :: Implementation :: PyPy
 Programming Language :: Python :: Implementation :: Stackless
 Topic :: Software Development :: Libraries
 """
-
+#TODO: test on other Python implementations
 
 from distutils.core import setup
 

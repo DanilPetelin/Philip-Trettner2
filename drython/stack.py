@@ -30,7 +30,7 @@ from drython.statement import Raise
 
 class Stack:
     """
-    Stack is an executable data structure for metaprogramming.
+    Stack is a data structure for metaprogramming.
 
     Pushing a special type of function, called a combinator, onto a
     Stack applies the combinator to elements from the stack.
@@ -249,10 +249,12 @@ def defcombinator(*args):
     return phrase
 
 
-class Def:
+class Def(tuple):
     """
-    Define a Python function from stack elements.
-    >>> from operator import mul
+    Defines a Python function from stack elements.
+
+    Def is an executable tuple for metaprogramming.
+    >>> from operator import mul, add
     >>> from drython.combinators import dup
     >>> square = Def(dup,op(mul))
     >>> square(7)
@@ -262,12 +264,11 @@ class Def:
     >>> square
     Def(dup, op(mul))
     """
-
-    def __init__(self, *elements):
-        self.elements = elements
+    def __new__(cls, *elements):
+        return tuple.__new__(cls, elements)
 
     def __call__(self, *args):
-        return Stack(*args).push(*self.elements).peek()
+        return Stack(*args).push(*self).peek()
 
     def __repr__(self):
-        return "Def" + repr(tuple(self.elements))
+        return "Def" + tuple.__repr__(self)

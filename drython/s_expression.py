@@ -107,12 +107,12 @@ class SExpression:
         self.kwargs = kwargs
 
     def s_eval(self, scope=None):
-        func = s_eval(self.func, scope)
+        func = try_s_eval(self.func, scope)
         if hasattr(func, '_macro_'):
-            return s_eval(func(*self.args, **self.kwargs), scope)
+            return try_s_eval(func(*self.args, **self.kwargs), scope)
         return func(
-            *(s_eval(a, scope) for a in self.args),
-            **{k: s_eval(v, scope) for k, v in self.kwargs.items()})
+            *(try_s_eval(a, scope) for a in self.args),
+            **{k: try_s_eval(v, scope) for k, v in self.kwargs.items()})
 
     def __repr__(self):
         indent = '\n  '
@@ -124,8 +124,8 @@ class SExpression:
             ',{0}**{1}'.format(indent, repr(self.kwargs).replace('\n', indent))
             if self.kwargs else '')
 
-def s_eval(element, scope):
-    if hasattr(element,'s_eval'):
+def try_s_eval(element, scope):
+    if hasattr(element, 's_eval'):
         return element.s_eval(scope)
     return element
 
@@ -149,7 +149,7 @@ class Quote:
     def of(cls, item):
         """
         Unlike the usual __init__(), of() will not
-        quote the item if it is already SEvaluable
+        quote the item if it is already s-evaluable
         """
         if hasattr(item, 's_eval'):
             return item

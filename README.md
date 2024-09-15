@@ -35,17 +35,17 @@ and manipulation of abstract syntax trees using the `ast` module, which is arcan
 
     import ast
     print(ast.dump(ast.parse('''print("Hello, World!")''')))
-    # it prints:
     # Module(body=[Expr(value=Call(func=Name(id='print', ctx=Load()), args=[Str(s='Hello, World!')], keywords=[], starargs=None, kwargs=None))])
 
-Reading AST is a bit easier than writing it,
-but it took that much for a simple `print('Hello, World!')`,
-and it gets complex fast.
+Reading AST is easier than writing it (malformed AST can segfault Python),
+but if it took that much for a simple `print('Hello, World!')`,
+you can imagine it gets complex fast.
 Unfortunately, bytecode and abstract syntax trees are implementation details subject to change
 between Python versions and implementations.
 
 There's an easier way. Drython provides *executable* data structures that are both simpler than AST,
-and are easier to work with than text. Drython doesn't use ast nor bytecode manipulation,
+and are easier to work with than text.
+Drython specifically avoids using ast and bytecode manipulation,
 so it's portable across implementations.
 
 ## Drython's statement module ##
@@ -56,7 +56,7 @@ Sure, you don't have to, Python has a perfectly good if-statement already, but c
 A DSL might need a three-way if-statement (-/+/0), or something like a switch-case.
 Yes, you can use the boilerplate cascading-elif pattern instead
 for any of your complex branching needs, but that's not an abstraction, is it?
-You have to re-write the switch-case (or what-have-you) imitating logic.
+You have to re-write the logic imitating the switch-case (or what-have-you).
 Every. Single. Time.
 If you can't make a simple `if` substitute,
 how can you expect to make a complex one when you need it?
@@ -65,6 +65,7 @@ You might not think Python can do it, but it's actually trivial in Smalltalk.
 "If" isn't a statement in Smalltalk to begin with.
 It's a method. On the booleans. In pseudo-Smalltalk-Python it would be something like this:
 
+    Python
     (foo < bar).iftrue_iffalse({
         # then-code here
     }, {
@@ -73,7 +74,7 @@ It's a method. On the booleans. In pseudo-Smalltalk-Python it would be something
 
 The `(foo < bar)` part evaluates to either `True` or `False` depending if
 `foo` is less then `bar` just like in normal Python.
-The `{}` isn't a dictionary, it's a code block.
+The `{}` isn't a dictionary; it's a code block.
 The `True` boolean has an `iftrue_iffalse` method that always executes the then-block,
 but `False` has a different version of `iftrue_iffalse` that only executes the else-block.
 Is that cool or what?
@@ -110,6 +111,7 @@ No need to write your own compiler or interpreter, because it's still just Pytho
 Ready for the next step?
 
 ## s-expressions ##
+
 Tired of writing `lambda: progn(...)` over and over again in the shiny new
 DSL you implemented after reading the last section?
 That sure sounds like a boilerplate code problem.
@@ -122,27 +124,29 @@ Lisp can do it with macros. Python can do it too, with drython.
 An S-expression is an abstracted function *call*.
 You create an S-expression instance with a function and its arguments.
 
+    Python
     S(print, "Hello,", "World!")
 
 But the call doesn't happen until you invoke its `s_eval()` method,
-at which point it calls `s_eval()` on all its `SEvaluable` arguments
+at which point it calls `s_eval()` on all its s-evaluable arguments
 (typically nested S-expressions), and then applies the function to the results.
 
-    S(print, S("Hello,".upper), S("World!".lower)).s_eval()
-    # prints:
-    # HELLO, world!
+    Python
+    >>> S(print, S("Hello,".upper), S("World!".lower)).s_eval()
+    HELLO, world!
 
 With this recursive evaluation and the statement replacements from the statement module,
 it is possible to write entire programs as nested S-expressions.
 Think of S-expressions as a simpler kind of abstract syntax trees.
 
 If the S-expression's function is a *macro*,
-then it gets any `SEvaluable` arguments unevaluated,
-and returns (typically) an `SEvaluable` for evaluation.
+then it gets any s-evaluable arguments unevaluated,
+and returns (typically) an s-evaluable for evaluation.
 In other words, macros can re-write code.
 
 So you can define "if" like this:
 
+    Python
     @macro
     def If(boolean, then, Else=None):
         return S(s_eval,
@@ -163,8 +167,54 @@ The s-expression module has a companion `macros` module which
 includes many useful basic macros to get you started.
 
 ## the stack module ##
-The `Def` class from the stack module is an alternative way to write anonymous functions.
 
-These functions are built from a sequence of stack *combinators* and their associated data.
+`Def` is an alternative way to write anonymous functions.
+It is another executable data structure in the tradition of stack-languages like Forth,
+Factor, and Joy.
+
+A Stack represents a composition of special
+functions called *stack combinators* and their associated data.
+
+Because stack combinators must accept a stack and return a stack, they are easy to combine into new
+combinators, just by listing them one after another.
+Typically they pop some arguments off the Stack and push the result on the return Stack
+
+Unlike s-expressions which must be s-evaluated, combinators execute immediately when pushed on a
+Stack. However,
+a list containing combinators isn't a Stack, even when the list itself is an element on a Stack.
+
+These lists are a kind of quoted program. Some combinators take such programs as arguments.
+This is similar to the way Smalltalk takes code blocks, so control structures (and therefore DSLs)
+can be implemented as combinators in an analogous way.
+See the `ifte` combinator in the `stack` module's companion `combinators` module for an example.
+
+Stack programs are interoperable with ordinary Python programs.
+
+The `do` combinator can execute any Python function using arguments from the stack.
+
+    Python
+    >>> Stack([1,2,3],dict(sep='::'),print,do)
+    1::2::3
+    Stack(None,)
+
+Including, of course, any statement replacement function from the `statement` module.
+
+The `op` function takes a Python function and returns a combinator.
+
+The `Def` class does the opposite.
+The `Def` constructor is a stack program, that is, a sequence of combinators
+(and any associated data).
+The resulting function (a callable instance of `Def`) takes its arguments as the initial Stack,
+applies the stored Stack program to that, then returns the top element of the Stack.
+
+    Python
+    >>> from operator import mul
+    >>> square = Def(dup, mul)  # duplicate, then multiply
+    >>> square(4)
+    16
+    >>> square(7)
+    49
+    >>> square  # unlike an ordinary Python function, the repr is readable.
+    Def(dup, op(mul))
 
 

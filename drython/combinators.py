@@ -314,10 +314,16 @@ def cleave(stack):
 def ifte(stack):
     """
     the if-then-else combinator
-    >>> Stack([True],[['was true'],print,do],[["wasn't"],print,do],ifte)
+    >>> from operator import lt
+    >>> from drython.stack import op
+    >>> Stack([1,2,op(lt)],
+    ...       [['was true'],print,do],
+    ...       [["wasn't"],print,do], ifte)
     was true
     Stack(None,)
-    >>> Stack([False],[['was true'],print,do],[["wasn't"],print,do],ifte)
+    >>> Stack([2,1,op(lt)],
+    ...       [['was true'],print,do],
+    ...       [["wasn't"],print,do], ifte)
     wasn't
     Stack(None,)
     """
