@@ -31,7 +31,8 @@ __test__ = {}
 def _private():
     class EmptyType(Mapping, Set, tuple):
         """
-        Represents an immutable empty tuple/Mapping/Set
+        Represents an immutable empty Mapping/Set/tuple
+        It's similar to None, but supports * and **
         >>> (lambda *args: args)(*Empty)
         ()
         >>> (lambda **kwargs: kwargs)(**Empty)
@@ -42,6 +43,12 @@ def _private():
         False
         >>> (1,) + Empty + (2,)
         (1, 2)
+        >>> set() == Empty
+        True
+        >>> () == Empty
+        True
+        >>> {} == Empty
+        True
 
         A common mistake in Python is to use a mutable default:
         >>> foo = lambda x={}: x
@@ -73,6 +80,18 @@ def _private():
 
         def __repr__(self):
             return 'Empty'
+
+        def __eq__(self, other):
+            if other == set() or other == {}:
+                return True
+            else:
+                return tuple.__eq__(self, other)
+
+        def __ne__(self, other):
+            return not self == other
+
+        def __hash__(self):
+            return 0
 
     __test__[EmptyType.__name__] = EmptyType.__doc__
 
