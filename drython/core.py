@@ -25,21 +25,61 @@ import functools
 from collections import Mapping, Set
 import sys
 
+_exclude_from__all__ = set(globals().keys())
+__test__ = {}
 
-class Empty(tuple, Mapping, Set):
-    __slots__ = ()
+def _private():
+    class EmptyType(Mapping, Set, tuple):
+        """
+        Represents an immutable empty tuple/Mapping/Set
+        >>> (lambda *args: args)(*Empty)
+        ()
+        >>> (lambda **kwargs: kwargs)(**Empty)
+        {}
+        >>> list(Empty)
+        []
+        >>> bool(Empty)
+        False
+        >>> (1,) + Empty + (2,)
+        (1, 2)
 
-    def __new__(cls, *args, **kwargs):
-        return tuple.__new__(cls)
+        A common mistake in Python is to use a mutable default:
+        >>> foo = lambda x={}: x
+        >>> foo()
+        {}
+        >>> foo()['spam'] = 'spam'
+        >>> foo()  # surprise!
+        {'spam': 'spam'}
 
-    def __init__(self):
-        tuple.__init__(self)
+        Empty doesn't have this problem, but is still a readonly Mapping
+        >>> foo = lambda x=Empty: x
+        >>> foo()['spam'] = 'spam'
+        Traceback (most recent call last):
+            ...
+        TypeError: 'EmptyType' object does not support item assignment
+        >>> foo()
+        Empty
+        """
+        __slots__ = ()
 
-    def __getitem__(self, key):
-        raise KeyError(key)
+        def __new__(cls, *args, **kwargs):
+            return tuple.__new__(cls)
 
-    def __repr__(self):
-        return self.__class__.__name__ + '()'
+        def __init__(self):
+            tuple.__init__(self)
+
+        def __getitem__(self, key):
+            raise KeyError(key)
+
+        def __repr__(self):
+            return 'Empty'
+
+    __test__[EmptyType.__name__] = EmptyType.__doc__
+
+    return EmptyType()
+
+Empty = _private()
+del _private
 
 
 def star(func):
@@ -73,6 +113,9 @@ def stars(func):
 
 
 def unstars(func):
+    """
+    Converts a function of one mapping to a function of keyword arguments
+    """
     return lambda **kwargs: func(kwargs)
 
 
@@ -215,6 +258,8 @@ def funcall(func, *args, **kwargs):
 
 def apply(func, *args, **kwargs):
     # TODO: doctest apply
-    return (lambda a=(), kw=Empty():
+    return (lambda a=(), kw=Empty:
             functools.partial(func, *args, **kwargs)(*a, **kw))
+
+__all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]
 

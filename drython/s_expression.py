@@ -225,7 +225,7 @@ def _private():
                 return 'SymbolType(%s)' % repr(self.data)
             return 'S.' + self.data
 
-        def s_eval(self, scope=Empty()):
+        def s_eval(self, scope=Empty):
             """ looks up itself in scope """
             try:
                 return scope[self]

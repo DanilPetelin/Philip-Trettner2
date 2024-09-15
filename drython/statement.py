@@ -70,7 +70,7 @@ from __future__ import absolute_import, division, print_function
 from drython.core import entuple, efset, partition, Empty
 
 _exclude_from__all__ = set(globals().keys())
-
+__test__ = {}
 
 def _private():
     class PassType:
@@ -88,6 +88,8 @@ def _private():
 
         def __repr__(self):
             return 'Pass'
+
+    __test__[PassType.__name__] = PassType.__doc__
 
     return PassType()
 
@@ -314,7 +316,7 @@ def For(iterable, func, Else=Pass, label=None):
     The element is not unpacked for a func with a single
     positional arg, which makes For behave more like `for`.
 
-    funct must be 1-argument
+    func must be 1-argument
     >>> For({'a':'A'}.items(), lambda pair:
     ...         print(pair))
     ('a', 'A')
@@ -326,7 +328,6 @@ def For(iterable, func, Else=Pass, label=None):
     ...          print(v))))
     key
     value
-
 
     For can nest
     >>> For('ab', lambda i:
@@ -387,12 +388,12 @@ def _private():
         >>> operator.add(1, 1)
         2
         >>> abc = Import('collections.abc')  # import collections.abc as abc
-        >>> hasattr(abc,'enset')
+        >>> hasattr(abc,'Set')
         True
 
         # from collections.abc import enset
-        >>> enset = Import('enset', From='collections')
-        >>> enset == abc.enset
+        >>> Set = Import('Set', From='collections')
+        >>> Set == abc.Set
         True
 
         # from .stack import Stack, op
@@ -786,7 +787,7 @@ def delitem(obj, index):
 
 
 
-def let(body, args=(), kwargs=Empty(), label=None):
+def let(body, args=(), kwargs=Empty, label=None):
     """
     immediately calls body.
     can catch a Return exception and returns its result.
