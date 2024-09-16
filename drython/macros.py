@@ -296,27 +296,25 @@ def dot(obj, *names):
 def _private():
     _sentinel = S(None)  # used only for is check
 
+    global thr, thrt
     # noinspection PyShadowingNames
     @macro
-    def threading(x, first=_sentinel, *rest):
+    def thr(x, first=_sentinel, *rest):
         # TODO: doctest threading
         if first is _sentinel:
             return x
-        return threading(S(first.func, x, *first.args, **first.kwargs), *rest)
+        return thr(S(first.func, x, *first.args, **first.kwargs), *rest)
 
     # noinspection PyShadowingNames
     @macro
-    def threading_tail(x, first=_sentinel, *rest):
+    def thrt(x, first=_sentinel, *rest):
         # TODO: doctest threading_tail
         if first is _sentinel:
             return x
-        return threading(S(first.func, *(first.args + (x,)), **first.kwargs), *rest)
-
-    return threading, threading_tail
+        return thrt(S(first.func, *(first.args + (x,)), **first.kwargs), *rest)
 
 
-threading = None
-threading_tail = None
-# noinspection PyRedeclaration
-threading, threading_tail = _private()
+thr = None
+thrt = None
+_private()
 del _private
