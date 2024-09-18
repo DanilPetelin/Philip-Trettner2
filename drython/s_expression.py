@@ -22,7 +22,9 @@ from expression.s_expression import S
 """
 # s_expression.py does not depend on other modules in this package
 # future versions may safely depend on core.py and statement.py
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division
+from drython.statement import Print
+
 from operator import add
 
 from drython.core import Empty
@@ -59,7 +61,7 @@ class SExpression:
     5
 
     Keywords also work
-    >>> S(print,1,2,3,sep='::').s_eval()
+    >>> S(Print,1,2,3,sep='::').s_eval()
     1::2::3
 
     Important: SExpression will not peek into other data structures to evaluate
@@ -68,18 +70,18 @@ class SExpression:
 
     This doesn't print 'test'.
     >>> identity = lambda x: x
-    >>> S(identity,[S(print,'test')]).s_eval()
+    >>> S(identity,[S(Print,'test')]).s_eval()
     [S(<built-in function print>,
       'test')]
 
     This does, since it uses another S-expression to make the list.
     >>> from drython.core import enlist
-    >>> S(identity,S(enlist,S(print,'test'))).s_eval()
+    >>> S(identity,S(enlist,S(Print,'test'))).s_eval()
     test
     [None]
 
     Explicit evaluation also works.
-    >>> S(identity,[S(print,'test').s_eval()]).s_eval()
+    >>> S(identity,[S(Print,'test').s_eval()]).s_eval()
     test
     [None]
 
@@ -87,15 +89,15 @@ class SExpression:
     These are given any nested S objects unevaluated, and return a
     new object to be evaluated.
     >>> from drython.macros import If
-    >>> S(If, True, S(print,'yes'), S(print,'no')).s_eval()
+    >>> S(If, True, S(Print,'yes'), S(Print,'no')).s_eval()
     yes
-    >>> S(If, False, S(print,'yes'), S(print,'no')).s_eval()
+    >>> S(If, False, S(Print,'yes'), S(Print,'no')).s_eval()
     no
 
     For comparison, note that a non-macro function gets any nested
     S objects pre-evaluated.
     >>> S(lambda b,t,e=None: t if b else e,
-    ...   True, S(print,'yes'), S(print,'no')).s_eval()
+    ...   True, S(Print,'yes'), S(Print,'no')).s_eval()
     yes
     no
 
@@ -171,13 +173,13 @@ def _private():
 
         A Symbol represents a potential Python identifier.
         >>> spam = 1
-        >>> print(spam)
+        >>> Print(spam)
         1
-        >>> no_symbol = S(print,spam)
+        >>> no_symbol = S(Print,spam)
         >>> no_symbol  # spam already resolved to 1
         S(<built-in function print>,
           1)
-        >>> with_symbol = S(print,S.spam)
+        >>> with_symbol = S(Print,S.spam)
         >>> with_symbol  # S.spam is still a symbol
         S(<built-in function print>,
           S.spam)

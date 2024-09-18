@@ -20,10 +20,18 @@
 
 from __future__ import absolute_import, division, print_function
 
-# noinspection PyPep8Naming
 import functools
 from collections import Mapping, Set
 import sys
+from itertools import islice
+if sys.version_info[0] == 2:
+    from itertools import izip_longest as zip_longest
+else:
+    from itertools import zip_longest
+
+# This is to avoid depending on statement.Print
+# a bug in Jython prevents from __future__ import print_statement from working in doctests.
+Print = print
 
 _exclude_from__all__ = set(globals().keys())
 __test__ = {}
@@ -60,10 +68,10 @@ def _private():
 
         Empty doesn't have this problem, but is still a readonly Mapping
         >>> foo = lambda x=Empty: x
-        >>> foo()['spam'] = 'spam'
+        >>> foo()['spam'] = 'spam'  # doctest: +ELLIPSIS
         Traceback (most recent call last):
             ...
-        TypeError: 'EmptyType' object does not support item assignment
+        TypeError: ...
         >>> foo()
         Empty
         """
@@ -105,9 +113,9 @@ def star(func):
     """
     Converts a multiple-argument function to a function of one iterable.
     >>> nums = [1, 2, 3]
-    >>> print(*nums)
+    >>> Print(*nums)
     1 2 3
-    >>> star(print)(nums)
+    >>> star(Print)(nums)
     1 2 3
     """
     return lambda arg: func(*arg)
@@ -138,34 +146,42 @@ def unstars(func):
     return lambda **kwargs: func(kwargs)
 
 
-entuple = unstar(tuple)
-entuple.__doc__ = """\
-returns args as a tuple
->>> entuple(1, 2, 3)
-(1, 2, 3)
-"""
+# entuple = unstar(tuple)
+def entuple(*args):
+    """
+    returns args as a tuple
+    >>> entuple(1, 2, 3)
+    (1, 2, 3)
+    """
+    return tuple(args)
 
-enlist = unstar(list)
-enlist.__doc__ = """\
-returns args as a list
->>> enlist(1, 2, 3)
-[1, 2, 3]
-"""
+# enlist = unstar(list)
+def enlist(*args):
+    """
+    returns args as a list
+    >>> enlist(1, 2, 3)
+    [1, 2, 3]
+    """
+    return list(args)
 
 
-enset = unstar(set)
-enset.__doc__ = """\
-returns args as a set
->>> enset(1, 2, 3) == {1, 2, 3}
-True
-"""
+# enset = unstar(set)
+def enset(*args):
+    """
+    returns args as a set
+    >>> enset(1, 2, 3) == {1, 2, 3}
+    True
+    """
+    return set(args)
 
-efset = unstar(frozenset)
-efset.__doc__ = """\
-return args as a frozenset
->>> efset(1, 2, 3) == frozenset([1, 2, 3])
-True
-"""
+# efset = unstar(frozenset)
+def efset(*args):
+    """
+    return args as a frozenset
+    >>> efset(1, 2, 3) == frozenset([1, 2, 3])
+    True
+    """
+    return frozenset(args)
 
 
 def edict(*args):
@@ -176,7 +192,7 @@ def edict(*args):
     >>> edict(1, 2,  3, 4,  5, 6)[3]
     4
     >>> edict(1, 2,
-    ...      3, 4) == {1: 2, 3: 4}
+    ...       3, 4) == {1: 2, 3: 4}
     True
     """
     return dict(partition(args))
@@ -213,52 +229,39 @@ class Namespace:
 # '''
 
 
-def _private():
-    from itertools import islice
-    if sys.version_info[0] == 2:
-        from itertools import izip_longest as zip_longest
+_sentinel = object()
+
+
+def partition(iterable, n=2, step=None, fillvalue=_sentinel):
+    """
+    Chunks iterable into tuples of length n. (default pairs)
+    >>> list(partition(range(10)))
+    [(0, 1), (2, 3), (4, 5), (6, 7), (8, 9)]
+
+    The remainder, if any, is not included.
+    >>> list(partition(range(10), 3))
+    [(0, 1, 2), (3, 4, 5), (6, 7, 8)]
+
+    Keep the remainder by using a fillvalue.
+    >>> list(partition(range(10), 3, fillvalue=None))
+    [(0, 1, 2), (3, 4, 5), (6, 7, 8), (9, None, None)]
+    >>> list(partition(range(10), 3, fillvalue='x'))
+    [(0, 1, 2), (3, 4, 5), (6, 7, 8), (9, 'x', 'x')]
+
+    The step defaults to n, but can be more to skip elements.
+    >>> list(partition(range(10), 2, 3))
+    [(0, 1), (3, 4), (6, 7)]
+
+    Or less for a sliding window with overlap.
+    >>> list(partition(range(5), 2, 1))
+    [(0, 1), (1, 2), (2, 3), (3, 4)]
+    """
+    step = step or n
+    slices = (islice(iterable, start, None, step) for start in range(n))
+    if fillvalue is _sentinel:
+        return zip(*slices)
     else:
-        from itertools import zip_longest
-
-    _sentinel = object()
-
-    global partition
-
-    def partition(iterable, n=2, step=None, fillvalue=_sentinel):
-        """
-        Chunks iterable into tuples of length n. (default pairs)
-        >>> list(partition(range(10)))
-        [(0, 1), (2, 3), (4, 5), (6, 7), (8, 9)]
-
-        The remainder, if any, is not included.
-        >>> list(partition(range(10), 3))
-        [(0, 1, 2), (3, 4, 5), (6, 7, 8)]
-
-        Keep the remainder by using a fillvalue.
-        >>> list(partition(range(10), 3, fillvalue=None))
-        [(0, 1, 2), (3, 4, 5), (6, 7, 8), (9, None, None)]
-        >>> list(partition(range(10), 3, fillvalue='x'))
-        [(0, 1, 2), (3, 4, 5), (6, 7, 8), (9, 'x', 'x')]
-
-        The step defaults to n, but can be more to skip elements.
-        >>> list(partition(range(10), 2, 3))
-        [(0, 1), (3, 4), (6, 7)]
-
-        Or less for a sliding window with overlap.
-        >>> list(partition(range(5), 2, 1))
-        [(0, 1), (1, 2), (2, 3), (3, 4)]
-        """
-        step = step or n
-        slices = (islice(iterable, start, None, step) for start in range(n))
-        if fillvalue is _sentinel:
-            return zip(*slices)
-        else:
-            return zip_longest(*slices, fillvalue=fillvalue)
-
-
-partition = None
-_private()
-del _private
+        return zip_longest(*slices, fillvalue=fillvalue)
 
 
 def identity(x):

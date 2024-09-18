@@ -36,6 +36,12 @@ Functions for the keywords `False`, `None`, `True`, `and`, `if`,
 `in`, `is`, `lambda`, `not`, `or`, and `yield` are not provided because
 they are already expressions. Similarly for most operators.
 
+Print is provided, since it's a statement in Python 2. This is merely
+an alias for the builtin print function. Without an alias, Python 2
+files would be forced to use `from __future__ import print_function`
+even if they already used print statements, or else a long invocation
+like `getattr(__builtin__, 'print')`.
+
 Due to optimizations for Python locals, direct local and nonlocal
 assignment statements cannot be emulated as functions, but Var can
 substitute for nonlocals in many cases. For the same reason, direct
@@ -141,7 +147,7 @@ def _private():
         ...     Break()
         ...     assert False
         ... except Exception as ex:
-        ...     print(repr(ex))
+        ...     Print(repr(ex))
         Break()
 
         Unlike while and for, While and For support labels
@@ -150,7 +156,7 @@ def _private():
         >>> For(range(4), lambda i:
         ...     For(range(4), lambda j:
         ...         (Break() if i==j else Pass(),
-        ...          print(i, j))))
+        ...          Print(i, j))))
         1 0
         2 0
         2 1
@@ -160,7 +166,7 @@ def _private():
         >>> For(range(1, 4), lambda i:
         ...     For(range(4), lambda j:
         ...         (Break("outer") if i==j else Pass(),
-        ...          print(i, j))),
+        ...          Print(i, j))),
         ...     label="outer")
         1 0
         """
@@ -175,7 +181,7 @@ def _private():
         ...     Continue()
         ...     assert False
         ... except Exception as ex:
-        ...     print(repr(ex))
+        ...     Print(repr(ex))
         Continue()
         
         Unlike while and for, While and For support labels
@@ -186,7 +192,7 @@ def _private():
         >>> For(range(4), lambda i:
         ...     For(range(4), lambda j:
         ...         (Continue("outer") if i==j else Pass(),
-        ...          print(i,j))),
+        ...          Print(i,j))),
         ...     label="outer")
         1 0
         2 0
@@ -197,7 +203,7 @@ def _private():
         >>> For(range(3), lambda i:
         ...     For(range(3), lambda j:
         ...         (Continue() if i==j else Pass(),
-        ...          print(i,j))))
+        ...          Print(i,j))))
         0 1
         0 2
         1 0
@@ -274,24 +280,24 @@ def Elif(*thunks, **Else):
     >>> Elif(Pass, lambda:1)  # Pass() is None
     >>> Elif(lambda:True, lambda:1)
     1
-    >>> Elif(Pass, lambda:print('a'),
-    ...      Else=lambda:print('b'))
+    >>> Elif(Pass, lambda:Print('a'),
+    ...      Else=lambda:Print('b'))
     b
-    >>> Elif(Pass, lambda:print('a'),
-    ...      Pass, lambda:print('b'))
-    >>> Elif(lambda:True, lambda:print('a'),
-    ...      Pass, lambda:print('b'))
+    >>> Elif(Pass, lambda:Print('a'),
+    ...      Pass, lambda:Print('b'))
+    >>> Elif(lambda:True, lambda:Print('a'),
+    ...      Pass, lambda:Print('b'))
     a
     >>> Elif(Pass, lambda:1,
-    ...      lambda:print('a'), lambda:2,  # head has to be checked.
+    ...      lambda:Print('a'), lambda:2,  # head has to be checked.
     ...      Pass, lambda:3,
     ...      Else=lambda:4)
     a
     4
-    >>> Elif(lambda:print('a'), lambda:2,  # print returns None
+    >>> Elif(lambda:Print('a'), lambda:2,  # Print returns None
     ...      lambda:3, lambda:4,  # nonzero is truthy
-    ...      lambda:print('skipped?'), lambda:print('skipped?'),
-    ...      Else=lambda:print('skipped?'))
+    ...      lambda:Print('skipped?'), lambda:Print('skipped?'),
+    ...      Else=lambda:Print('skipped?'))
     a
     4
 
@@ -318,21 +324,21 @@ def For(iterable, func, Else=Pass, label=None):
 
     func must be 1-argument
     >>> For({'a':'A'}.items(), lambda pair:
-    ...         print(pair))
+    ...         Print(pair))
     ('a', 'A')
 
     Use the star function for unpacking
     >>> from drython.core import star
     >>> For({'key':'value'}.items(), star(lambda k, v:
-    ...         (print(k),
-    ...          print(v))))
+    ...         (Print(k),
+    ...          Print(v))))
     key
     value
 
     For can nest
     >>> For('ab', lambda i:
     ...     For('AB', lambda j:
-    ...         print(i, j)))
+    ...         Print(i, j)))
     a A
     a B
     b A
@@ -341,17 +347,17 @@ def For(iterable, func, Else=Pass, label=None):
     For also has an optional Else thunk, and supports labeled
     Break and Continue.
     >>> For(range(99), lambda i:
-    ...       print(i) if i<4 else Break(),
+    ...       Print(i) if i<4 else Break(),
     ...     Else=lambda:
-    ...       print("not found"))
+    ...       Print("not found"))
     0
     1
     2
     3
     >>> For(range(2), lambda i:
-    ...       print(i) if i<4 else Break(),
+    ...       Print(i) if i<4 else Break(),
     ...     Else=lambda:
-    ...       print("not found"))
+    ...       Print("not found"))
     0
     1
     not found
@@ -425,6 +431,7 @@ Import = None
 _private()
 del _private
 
+Print = print
 
 def Raise(ex=None, From=Ellipsis):
     if ex:
@@ -477,11 +484,11 @@ Raise.__doc__ = \
     >>> try:
     ...     1/0
     ... except ZeroDivisionError:
-    ...     print('zde!')
-    ...     Raise()
+    ...     Print('zde!')
+    ...     Raise() # doctest: +ELLIPSIS
     Traceback (most recent call last):
         ...
-    ZeroDivisionError: division by zero
+    ZeroDivisionError: ...
 
     raise ... from is also supported, even experimentally in 2.7
     >>> Raise(ZeroDivisionError, From=None)
@@ -492,7 +499,7 @@ Raise.__doc__ = \
     >>> try:
     ...     Raise(ZeroDivisionError, From=StopIteration())
     ... except ZeroDivisionError as zde:
-    ...     print(zde.__cause__)
+    ...     Print(zde.__cause__)
     """
 
 def Try(thunk, *Except, **ElseFinally):
@@ -510,13 +517,13 @@ def Try(thunk, *Except, **ElseFinally):
     >>> Try(lambda:
     ...         1/0,  # error
     ...     ZeroDivisionError, lambda zdr: progn(
-    ...         print(zdr),
+    ...         Print(zdr.__class__.__name__),
     ...         'returns: take a limit!',),
     ...     Finally=lambda:
-    ...         print('finally!'),
+    ...         Print('finally!'),
     ...     Else=lambda:
-    ...         print('returns: or else!'))
-    division by zero
+    ...         Print('returns: or else!'))
+    ZeroDivisionError
     finally!
     'returns: take a limit!'
 
@@ -524,10 +531,10 @@ def Try(thunk, *Except, **ElseFinally):
     >>> Try(lambda:
     ...         0/1,  # allowed
     ...     ZeroDivisionError, lambda zdr: progn(
-    ...         print(zdr),
+    ...         Print(zdr),
     ...         'take a limit!',),
     ...     Finally=lambda:
-    ...         print('finally!'),
+    ...         Print('finally!'),
     ...     Else=lambda:
     ...         'returns: or else!')
     finally!
@@ -541,16 +548,16 @@ def Try(thunk, *Except, **ElseFinally):
     >>> Try(lambda:
     ...         1/0,
     ...     ZeroDivisionError, lambda zdr:
-    ...         print('by ZeroDivisionError'),
+    ...         Print('by ZeroDivisionError'),
     ...     Exception, lambda x:
-    ...         print('by Exception'),)
+    ...         Print('by Exception'),)
     by ZeroDivisionError
     >>> Try(lambda:
     ...         1/0,
     ...     Exception, lambda x:
-    ...         print('by Exception'),
+    ...         Print('by Exception'),
     ...     ZeroDivisionError, lambda zdr:
-    ...         print('by ZeroDivisionError'),)
+    ...         Print('by ZeroDivisionError'),)
     by Exception
 
     to catch any exception, like the final `except:`, use BaseException.
@@ -583,7 +590,7 @@ def While(predicate, thunk, label=None, Else=Pass):
     """
     >>> from operator import add
     >>> spam = Var(4)
-    >>> While(lambda:spam.e,lambda:print(spam.set(-1,add)))
+    >>> While(lambda:spam.e,lambda:Print(spam.set(-1,add)))
     3
     2
     1
@@ -591,13 +598,13 @@ def While(predicate, thunk, label=None, Else=Pass):
     >>> spam.set(1)
     1
     >>> While(lambda: spam.e,
-    ...   lambda: print(spam.set(-1,add)),
-    ...   Else=lambda: print('done'))
+    ...   lambda: Print(spam.set(-1,add)),
+    ...   Else=lambda: Print('done'))
     0
     done
     >>> While(lambda: True,
-    ...   lambda: print(spam.set(1,add)) if spam.e < 2 else Break(),
-    ...   Else=lambda: print('not possible'))
+    ...   lambda: Print(spam.set(1,add)) if spam.e < 2 else Break(),
+    ...   Else=lambda: Print('not possible'))
     1
     2
 
@@ -777,7 +784,7 @@ def delitem(obj, index):
     ...    spam
     ...    assert False
     ... except NameError as ne:
-    ...    print(repr(ne))
+    ...    Print(repr(ne))
     NameError("name 'spam' is not defined",)
     """
     del obj[index]
@@ -801,7 +808,7 @@ def let(body, args=(), kwargs=Empty, label=None):
     Default parameters don't support everything assign statements do.
     Unpack tuples using the args key instead.
     >>> triple = (1,2,3)
-    >>> let(args=triple, body=lambda a,b,c: print(c,b,a))
+    >>> let(args=triple, body=lambda a,b,c: Print(c,b,a))
     3 2 1
 
     Unpack dicts using the kwargs key.
@@ -829,7 +836,7 @@ def progn(*body):
     progn is used to combine several expressions into one by sequencing,
     for side-effects. Python guarantees sequential evaluation of arguments:
     https://docs.python.org/3/reference/expressions.html#evaluation-order
-    >>> spam = progn(print('side'),print('effect'),'suppressed',42)
+    >>> spam = progn(Print('side'),Print('effect'),'suppressed',42)
     side
     effect
     >>> spam

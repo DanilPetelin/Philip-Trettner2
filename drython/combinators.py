@@ -18,7 +18,8 @@ Stack combinators.
 
 supports import *
 """
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division
+from drython.statement import Print
 
 from itertools import permutations
 import collections
@@ -173,13 +174,13 @@ def do(stack):
     The do combinator applies an ordinary Python function to a
     list of arguments.
 
-    (The print function returns None)
-    >>> Stack([1,2,3],print,do)
+    (The Print function returns None)
+    >>> Stack([1,2,3],Print,do)
     1 2 3
     Stack(None,)
 
     Keywords are also supported with a dictionary
-    >>> Stack([1,2,3],dict(sep=':'),print,do)
+    >>> Stack([1,2,3],dict(sep=':'),Print,do)
     1:2:3
     Stack(None,)
 
@@ -317,13 +318,13 @@ def ifte(stack):
     >>> from operator import lt
     >>> from drython.stack import op
     >>> Stack([1,2,op(lt)],
-    ...       [['was true'],print,do],
-    ...       [["wasn't"],print,do], ifte)
+    ...       [['was true'],Print,do],
+    ...       [["wasn't"],Print,do], ifte)
     was true
     Stack(None,)
     >>> Stack([2,1,op(lt)],
-    ...       [['was true'],print,do],
-    ...       [["wasn't"],print,do], ifte)
+    ...       [['was true'],Print,do],
+    ...       [["wasn't"],Print,do], ifte)
     wasn't
     Stack(None,)
     """

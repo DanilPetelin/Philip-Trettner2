@@ -13,7 +13,8 @@
 # limitations under the License.
 
 # TODO: docstring macros.py
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division
+from drython.statement import Print
 
 from collections import Mapping
 
@@ -184,12 +185,12 @@ def thunk(body):
 def If(boolean, then, Else=None):
     """
     >>> from operator import add, sub
-    >>> S(If,S(sub,1,1),S(print,'then')).s_eval()
-    >>> S(If,S(add,1,1),S(print,'then')).s_eval()
+    >>> S(If,S(sub,1,1),S(Print,'then')).s_eval()
+    >>> S(If,S(add,1,1),S(Print,'then')).s_eval()
     then
-    >>> S(If,S(add,1,1),S(print,'then'),S(print,'else')).s_eval()
+    >>> S(If,S(add,1,1),S(Print,'then'),S(Print,'else')).s_eval()
     then
-    >>> S(If,S(sub,1,1),S(print,'then'),S(print,'else')).s_eval()
+    >>> S(If,S(sub,1,1),S(Print,'then'),S(Print,'else')).s_eval()
     else
     """
     return S(s_eval,
@@ -240,7 +241,7 @@ def cond(*rest, **Else):
 #     'yes'
 #     >>> S(AND,False).eval()
 #     False
-#     >>> S(AND,S(str,1),True,"yes",S(print,'shortcut?'),S(print,'nope')).eval()
+#     >>> S(AND,S(str,1),True,"yes",S(Print,'shortcut?'),S(Print,'nope')).eval()
 #     shortcut?
 #     """
 #     return S(IF,first,S(EVAL,S(AND,*rest)),first)
@@ -257,7 +258,7 @@ def cond(*rest, **Else):
 #     []
 #     >>> S(OR,[],'yes').eval()
 #     'yes'
-#     >>> S(OR,[],'',False,S(print,'shortcut?'),'yes?',S(print,'nope')).eval()
+#     >>> S(OR,[],'',False,S(Print,'shortcut?'),'yes?',S(Print,'nope')).eval()
 #     shortcut?
 #     'yes?'
 #     """
@@ -281,10 +282,10 @@ def dot(obj, *names):
     'r'
     >>> S(dot,['foo','bar','baz'],[1],[-1]).s_eval()
     'r'
-    >>> str.join
-    <method 'join' of 'str' objects>
-    >>> S(dot,str,S.join).s_eval(dict(join='error!'))
-    <method 'join' of 'str' objects>
+    >>> str.join.__name__
+    'join'
+    >>> S(dot,str,S.join,S.__name__).s_eval(dict(join='error!'))
+    'join'
     """
     res = obj
     for n in names:

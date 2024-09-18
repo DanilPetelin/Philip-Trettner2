@@ -17,7 +17,6 @@ Programming Language :: Python :: Implementation :: CPython
 Programming Language :: Python :: Implementation :: IronPython
 Programming Language :: Python :: Implementation :: Jython
 Programming Language :: Python :: Implementation :: PyPy
-Programming Language :: Python :: Implementation :: Stackless
 Topic :: Software Development :: Libraries
 """
 #TODO: test on other Python implementations
@@ -33,7 +32,7 @@ setup(
     name='drython',
     version='0.1',
     packages=['drython'],
-    url='url?',
+    url='https://github.com/gilch/drython',
     license='http://www.apache.org/licenses/LICENSE-2.0',
     author='Matthew Egan Odendahl',
     author_email='email?',

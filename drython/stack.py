@@ -15,7 +15,9 @@
 """
 Stack-based combinator algebra for Python.
 """
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division
+from drython.statement import Print
+
 from functools import update_wrapper
 from collections import deque
 
@@ -121,7 +123,7 @@ class Stack:
         >>> four.pop(4)
         (Stack(), 1, 2, 3, 4)
         >>> stack, a, b = four.pop(2)
-        >>> print(stack, a, b, sep='\n')
+        >>> Print(stack, a, b, sep='\n')
         Stack(1, 2)
         3
         4
@@ -129,7 +131,7 @@ class Stack:
         ...     four.pop(5)
         ...     assert False
         ... except IndexError as ie:
-        ...     print(ie)
+        ...     Print(ie)
         Stack underflow
         """
         xs = deque()
@@ -157,7 +159,7 @@ class Stack:
         ...     Stack(1,2,3).peek(4)
         ...     assert False
         ... except IndexError as ie:
-        ...     print(ie)
+        ...     Print(ie)
         Stack underflow
         """
         if depth:
