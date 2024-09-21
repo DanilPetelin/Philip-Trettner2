@@ -219,7 +219,7 @@ def _private():
             S.foo
             >>> S.fo + S.r
             SymbolType('for')
-            >>> '1' + S.foo
+            >>> SymbolType('1') + S.foo
             SymbolType('1foo')
             """
             # or not self.isidentifier():

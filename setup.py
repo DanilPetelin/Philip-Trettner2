@@ -19,7 +19,6 @@ Programming Language :: Python :: Implementation :: Jython
 Programming Language :: Python :: Implementation :: PyPy
 Topic :: Software Development :: Libraries
 """
-#TODO: test on other Python implementations
 
 from distutils.core import setup
 

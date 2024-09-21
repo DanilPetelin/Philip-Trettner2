@@ -37,11 +37,11 @@ _exclude_from__all__ = set(globals().keys())
 __test__ = {}
 
 def _private():
-    class EmptyType(Mapping, Set, tuple):
+    class EmptyType(Mapping, tuple):
         """
-        Represents an immutable empty Mapping/Set/tuple
+        Represents an immutable empty Mapping/tuple
         It's similar to None, but supports * and **
-        >>> (lambda *args: args)(*Empty)
+        >>> (lambda *args: tuple(args))(*Empty)
         ()
         >>> (lambda **kwargs: kwargs)(**Empty)
         {}
@@ -51,8 +51,6 @@ def _private():
         False
         >>> (1,) + Empty + (2,)
         (1, 2)
-        >>> set() == Empty
-        True
         >>> () == Empty
         True
         >>> {} == Empty
@@ -76,6 +74,9 @@ def _private():
         Empty
         """
         __slots__ = ()
+
+        __len__ = tuple.__len__
+        __iter__ = tuple.__iter__
 
         def __new__(cls, *args, **kwargs):
             return tuple.__new__(cls)
