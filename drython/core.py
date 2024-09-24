@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: docstring core.py module
+"""
+Basic utilites for use with the other modules.
+"""
 
 # Other modules in this package may require core.
 # To avoid circular dependencies, core.py shall not depend on any other modules in this package.
