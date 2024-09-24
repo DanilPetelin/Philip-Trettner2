@@ -20,10 +20,10 @@
 
 from __future__ import absolute_import, division, print_function
 
-import functools
 from collections import Mapping, Set
 import sys
 from itertools import islice
+
 if sys.version_info[0] == 2:
     from itertools import izip_longest as zip_longest
 else:
@@ -35,6 +35,7 @@ Print = print
 
 _exclude_from__all__ = set(globals().keys())
 __test__ = {}
+
 
 def _private():
     class EmptyType(Mapping, tuple):
@@ -106,6 +107,7 @@ def _private():
 
     return EmptyType()
 
+
 Empty = _private()
 del _private
 
@@ -135,7 +137,13 @@ def unstar(func):
 
 def stars(func):
     """
-    Converts a multiple-argument function to a function of one mapping
+    Converts a multiple-argument function to a function of one mapping.
+    >>> cba = dict(c='C', b='B', a='A')
+    >>> test = (lambda a, b, c: Print(a, b, c))
+    >>> test(**cba)
+    A B C
+    >>> stars(test)(cba)
+    A B C
     """
     return lambda kwargs: func(**kwargs)
 
@@ -143,6 +151,11 @@ def stars(func):
 def unstars(func):
     """
     Converts a function of one mapping to a function of keyword arguments
+    >>> test = lambda mapping: Print(mapping)
+    >>> test(dict(a='A'))
+    {'a': 'A'}
+    >>> unstars(test)(a='A')
+    {'a': 'A'}
     """
     return lambda **kwargs: func(kwargs)
 
@@ -155,6 +168,7 @@ def entuple(*args):
     (1, 2, 3)
     """
     return tuple(args)
+
 
 # enlist = unstar(list)
 def enlist(*args):
@@ -174,6 +188,7 @@ def enset(*args):
     True
     """
     return set(args)
+
 
 # efset = unstar(frozenset)
 def efset(*args):
@@ -220,7 +235,6 @@ class Namespace:
         return 'Namespace({0})'.format(
             ', '.join('{0}={1}'.format(k, repr(v))
                       for k, v in self.__dict__.items()))
-
 
 # prog1 = lambda *body: body[0]
 # prog1.__doc__ = '''\
@@ -274,15 +288,20 @@ def identity(x):
     """
     return x
 
-
-def funcall(func, *args, **kwargs):
-    return func(*args, **kwargs)
-
-
-def apply(func, *args, **kwargs):
-    # TODO: doctest apply
-    return (lambda a=(), kw=Empty:
-            functools.partial(func, *args, **kwargs)(*a, **kw))
+# def funcall(func, *args, **kwargs):
+#     """
+#     Immediately calls the function with the given arguments.
+#     """
+#     return func(*args, **kwargs)
+#
+#
+# def apply(func, *args, **kwargs):
+#     """
+#     Partially applies any given arguments to func and returns a function of args and kwargs
+#     for the remainder.
+#     """
+#     # TODO: doctest apply
+#     return (lambda a=(), kw=Empty:
+#             functools.partial(func, *args, **kwargs)(*a, **kw))
 
 __all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]
-
