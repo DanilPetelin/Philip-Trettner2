@@ -16,8 +16,6 @@
 """
 This module exports a set of statement replacement functions.
 
-supports import *
-
 These correspond to Python statements, but are usable as expressions,
 including (for example) in eval and lambda. As higher-order functions,
 these substitutes can be composed, curried, returned, and passed as
@@ -27,10 +25,6 @@ Despite convention for Python function names, the functions Assert,
 Break, Continue, Elif/Else, For/Else, Import/From, Pass, Raise/From,
 let/Return, Try/Except/Else/Finally, With, and While/Else are
 capitalized to avoid conflicts with the original Python keywords.
-
-The functional style works better with statements replaced by
-expressions, but be aware that some statement replacements (like For)
-always return None and must act through side effects.
 
 Functions for the keywords `False`, `None`, `True`, `and`, `if`,
 `in`, `is`, `lambda`, `not`, `or`, and `yield` are not provided because
@@ -64,19 +58,47 @@ is the same as
 A substitute for `def` is not provided here, but `lambda` is a viable
 alternative now that most statements are available as expressions.
 Multiple sequential expressions are available in lambda via progn.
-Multiple exits are available via let/progn/Return()
+Multiple exits are available via let/progn/Return
 
-See stack.Def and macros.Lx for two alternative `def` substitutes.
+See stack.Def and macros.L1 for two alternative `def` substitutes.
 """
-from __future__ import absolute_import, division, print_function
 # To avoid circular dependencies in this package,
 # statement.py shall depend only on the core.py module
 
+from __future__ import absolute_import, division, print_function
+
+from importlib import import_module
+import sys
 
 from drython.core import entuple, efset, partition, Empty
 
+
+class LabeledException(Exception):
+    def handle(self, label=None):
+        """ re-raise self if label doesn't match. """
+        if self.label is None or self.label == label:
+            return
+        else:
+            raise self
+
+    def __init__(self, label=None):
+        self.label = label
+        raise self
+
+
+class LabeledResultException(LabeledException):
+    def __init__(self, result=None, *results, **label):
+        assert set(label.keys()) <= efset('label')
+        if results:
+            self.result = entuple(result, *results)
+        else:
+            self.result = result
+        LabeledException.__init__(self, label.get('label', None))
+
+
 _exclude_from__all__ = set(globals().keys())
 __test__ = {}
+
 
 def _private():
     class PassType:
@@ -111,10 +133,7 @@ def Assert(boolean):
     >>> Assert(1+1 == 2)
     >>> Assert(1+1 == 7)
     Traceback (most recent call last):
-      File "<pyshell#x>", line 1, in <module>
-        Assert(False)
-      File "statement.py", line 41, in Assert
-        assert boolean
+        ...
     AssertionError
 
     Unlike naked assert statements,
@@ -124,157 +143,105 @@ def Assert(boolean):
     assert boolean
 
 
-def _private():
-    class LabeledException(Exception):
-        def handle(self, label=None):
-            """ re-raise self if label doesn't match. """
-            if self.label is None or self.label == label:
-                return
-            else:
-                raise self
+class Break(LabeledResultException):
+    """
+    a substitute for the break statement.
 
-        def __init__(self, label=None):
-            self.label = label
-            raise self
+    This breaks out of While and For, by raising itself.
+    >>> try:
+    ...     Break()
+    ...     assert False
+    ... except Exception as ex:
+    ...     Print(repr(ex))
+    Break()
 
-    global Break
+    Unlike while and for, While and For support labels
+    to break targeted outer loops from within inner loops.
 
-    class Break(LabeledException):
-        """
-        a substitute for the break statement.
-        This breaks out of While and For, by raising self.
-        >>> try:
-        ...     Break()
-        ...     assert False
-        ... except Exception as ex:
-        ...     Print(repr(ex))
-        Break()
+    >>> For(range(4), lambda i:
+    ...     For(range(4), lambda j:
+    ...         (Break() if i==j else Pass(),
+    ...          Print(i, j))))
+    1 0
+    2 0
+    2 1
+    3 0
+    3 1
+    3 2
+    >>> For(range(1, 4), lambda i:
+    ...     For(range(4), lambda j:
+    ...         (Break(label="outer") if i==j else Pass(),
+    ...          Print(i, j))),
+    ...     label="outer")
+    1 0
 
-        Unlike while and for, While and For support labels
-        to break targeted outer loops from within inner loops.
-
-        >>> For(range(4), lambda i:
-        ...     For(range(4), lambda j:
-        ...         (Break() if i==j else Pass(),
-        ...          Print(i, j))))
-        1 0
-        2 0
-        2 1
-        3 0
-        3 1
-        3 2
-        >>> For(range(1, 4), lambda i:
-        ...     For(range(4), lambda j:
-        ...         (Break("outer") if i==j else Pass(),
-        ...          Print(i, j))),
-        ...     label="outer")
-        1 0
-        """
-
-    global Continue
-
-    class Continue(LabeledException):
-        """
-        a substitute for the continue statement.
-        This continues a While or For, by raising self.
-        >>> try:
-        ...     Continue()
-        ...     assert False
-        ... except Exception as ex:
-        ...     Print(repr(ex))
-        Continue()
-        
-        Unlike while and for, While and For support labels
-        to continue a targeted outer loop from within inner loops.
-        If the label exists, but doesn't match, the Continue is
-        raised again.
-        
-        >>> For(range(4), lambda i:
-        ...     For(range(4), lambda j:
-        ...         (Continue("outer") if i==j else Pass(),
-        ...          Print(i,j))),
-        ...     label="outer")
-        1 0
-        2 0
-        2 1
-        3 0
-        3 1
-        3 2
-        >>> For(range(3), lambda i:
-        ...     For(range(3), lambda j:
-        ...         (Continue() if i==j else Pass(),
-        ...          Print(i,j))))
-        0 1
-        0 2
-        1 0
-        1 2
-        2 0
-        2 1
-        """
-
-    global Return
-
-    class Return(LabeledException):
-        """
-        Aborts an expression early, but keeps a result value.
-        Must be wrapped in a let().
-        >>> let(lambda: progn(
-        ...  1,
-        ...  2,
-        ...  3,))
-        3
-        >>> let(lambda: progn(
-        ...  1,
-        ...  Return(2),
-        ...  3,))
-        2
-
-        Like `return` an empty Return() returns None.
-        >>> let(lambda: progn(
-        ...  1,
-        ...  Return(),
-        ...  3,))
-
-        Like `return`, multiple Return values result in a tuple.
-        >>> let(lambda: progn(
-        ...  1,
-        ...  Return(1,2,3),
-        ...  3,))
-        (1, 2, 3)
-
-        Can return through multiple let()s using a label.
-        >>> let(label='outer', body=lambda a=1,d=4: progn(
-        ...   let(lambda b=42,c=3: progn(
-        ...     a,
-        ...     Return(b,label='outer'),
-        ...     c,)),
-        ...   d,))
-        42
-        """
-
-        def __init__(self, result=None, *results, **label):
-            assert set(label.keys()) <= efset('label')
-            if results:
-                self.result = (result,) + results
-            else:
-                self.result = result
-            LabeledException.__init__(self, label.get('label', None))
+    Break can also return a value. This becomes the result of
+    the loop itself.
+    >>> str(For(range(1,100,7), lambda i:
+    ...         Print('.'*i) if i<20 else Break(i)))
+    .
+    ........
+    ...............
+    '22'
+    """
 
 
-# IntelliJ requires individual top-level assignments to detect globals
-Break = None
-Continue = None
-Return = None
+class Continue(LabeledException):
+    """
+    a substitute for the continue statement.
 
-_private()  # Creates Break, Continue, Return
-del _private
+    This continues a While or For, by raising self.
+    >>> try:
+    ...     Continue()
+    ...     assert False
+    ... except Exception as ex:
+    ...     Print(repr(ex))
+    Continue()
+
+    Unlike while and for, While and For support labels
+    to continue a targeted outer loop from within inner loops.
+    If the label exists, but doesn't match, the Continue is
+    raised again.
+
+    >>> For(range(4), lambda i:
+    ...     For(range(4), lambda j:
+    ...         (Continue("outer") if i==j else Pass(),
+    ...          Print(i,j))),
+    ...     label="outer")
+    1 0
+    2 0
+    2 1
+    3 0
+    3 1
+    3 2
+    >>> For(range(3), lambda i:
+    ...     For(range(3), lambda j:
+    ...         (Continue() if i==j else Pass(),
+    ...          Print(i,j))))
+    0 1
+    0 2
+    1 0
+    1 2
+    2 0
+    2 1
+    >>> For(range(3), lambda i: progn(
+    ...     Print(i),
+    ...     While(lambda:True, lambda:
+    ...         Continue('outer')),
+    ...     Print('impossible')),
+    ...     label='outer')
+    0
+    1
+    2
+    """
+
 
 # a Smalltalk-like implementation of Lisp's COND.
 # noinspection PyPep8Naming
 def Elif(*thunks, **Else):
     """
     Cascading if. The args are paired. Pairs are checked in order.
-    If the head evaluates to true, the second is called. If no heads are true,
+    If the left evaluates to true, the right is called. If all are false,
     Else is called.
     >>> Elif()  # Else defaults to Pass
     >>> Elif(Pass, lambda:1)  # Pass() is None
@@ -312,17 +279,15 @@ def Elif(*thunks, **Else):
     return Else.get('Else', Pass)()
 
 
-
 # noinspection PyPep8Naming,PyShadowingNames
-def For(iterable, func, Else=Pass, label=None):
+def For(iterable, body, Else=Pass, label=None):
     """
-    Unpacks each element from iterable and applies func to it.
+    Unpacks each element from iterable and applies body to it.
+
     Unlike map() (and like `for`) For is strict, not lazy;
     it is not a generator and evaluation begins immediately.
-    The element is not unpacked for a func with a single
-    positional arg, which makes For behave more like `for`.
 
-    func must be 1-argument
+    body must be 1-argument
     >>> For({'a':'A'}.items(), lambda pair:
     ...         Print(pair))
     ('a', 'A')
@@ -365,104 +330,72 @@ def For(iterable, func, Else=Pass, label=None):
     try:
         for e in iterable:
             try:
-                func(e)
+                body(e)
             except Continue as c:
                 c.handle(label)
     except Break as b:
         b.handle(label)
-        return  # skip Else() on Break
-    Else()
+        # skip Else() on Break
+        return b.result
+    return Else()
 
 
-def _private():
-    from importlib import import_module
+# noinspection PyPep8Naming
+def Import(item, *items, **package_From):
+    """
+    convenience function wrapping importlib.import_module()
 
-    global Import
+    # from operator import sub, mul
+    >>> sub, mul = Import('sub', 'mul', From='operator')
+    >>> sub(1,3)
+    -2
+    >>> mul(2,3)
+    6
+    >>> operator = Import('operator')  # import operator
+    >>> operator.add(1, 1)
+    2
+    >>> xmldom = Import('xml.dom')  # import xml.dom as xmldom
+    >>> hasattr(xmldom,'domreg')
+    True
 
-    # noinspection PyPep8Naming
-    def Import(item, *items, **package_From):
-        """
-        convenience function wrapping importlib.import_module()
+    # from xml.dom import domreg
+    >>> domreg = Import('domreg', From='xml.dom')
+    >>> xmldom.domreg == domreg
+    True
 
-        # from operator import sub, mul
-        >>> sub, mul = Import('sub', 'mul', From='operator')
-        >>> sub(1,3)
-        -2
-        >>> mul(2,3)
-        6
-        >>> operator = Import('operator')  # import operator
-        >>> operator.add(1, 1)
-        2
-        >>> abc = Import('collections.abc')  # import collections.abc as abc
-        >>> hasattr(abc,'Set')
-        True
-
-        # from collections.abc import enset
-        >>> Set = Import('Set', From='collections')
-        >>> Set == abc.Set
-        True
-
-        # from .stack import Stack, op
-        >>> Stack, op = Import('Stack', 'op', From='.stack', package='drython')
-        >>> Stack(1,2,op(sub)).peek()
-        -1
-        """
-        assert set(package_From.keys()) <= efset('package', 'From')
-        package = package_From.get('package', None)
-        From = package_From.get('From', None)
+    # from .stack import Stack, op
+    >>> Stack, op = Import('Stack', 'op', From='.stack', package='drython')
+    >>> Stack(1,2,op(sub)).peek()
+    -1
+    """
+    assert set(package_From.keys()) <= efset('package', 'From')
+    package = package_From.get('package', None)
+    From = package_From.get('From', None)
+    if items:
+        items = entuple(item, *items)
+    if package:
+        import_module(package)  # really necessary?
+    if From:
+        module = import_module(From, package)
         if items:
-            items = entuple(item, *items)
-        if package:
-            import_module(package)  # really necessary?
-        if From:
-            module = import_module(From, package)
-            if items:
-                return (getattr(module, item) for item in items)
-            else:
-                return getattr(module, item)
+            return (getattr(module, item) for item in items)
         else:
-            if items:
-                return (import_module(item, package) for item in items)
-            else:
-                return import_module(item, package)
+            return getattr(module, item)
+    else:
+        if items:
+            return (import_module(item, package) for item in items)
+        else:
+            return import_module(item, package)
 
-
-Import = None
-_private()
-del _private
 
 Print = print
 
+
+# noinspection PyPep8Naming
 def Raise(ex=None, From=Ellipsis):
-    if ex:
-        if From is not Ellipsis:
-            if ex.__class__ == type:
-                ex = ex()
-            # raise ex from From
-            ex.__cause__ = From
-        raise ex
-    raise
-
-
-import sys
-if sys.version_info[0] >= 3:
-    exec("""\
-def Raise(ex=None, From=Ellipsis):
-    if ex:
-        if From is not Ellipsis:
-            raise ex from From
-        raise ex
-    raise
-""")
-del sys
-
-
-# _private()
-# del _private
-
-Raise.__doc__ = \
     """
     raises an exception.
+
     >>> Raise(ZeroDivisionError)
     Traceback (most recent call last):
         ...
@@ -499,11 +432,93 @@ Raise.__doc__ = \
     >>> try:
     ...     Raise(ZeroDivisionError, From=StopIteration())
     ... except ZeroDivisionError as zde:
-    ...     Print(zde.__cause__)
+    ...     Print(repr(zde.__cause__))
+    StopIteration()
+    """
+    if ex:
+        if From is not Ellipsis:
+            if ex.__class__ == type:
+                ex = ex()
+            # raise ex from From
+            ex.__cause__ = From
+        raise ex
+    raise
+
+
+if sys.version_info[0] >= 3:
+    _doc = Raise.__doc__
+    # check for 3.3+ PEP 409 which allows raise ... from None
+    if sys.version_info[1] >= 3:
+        exec("""\
+def Raise(ex=None, From=Ellipsis):
+    if ex:
+        if From is not Ellipsis:
+            raise ex from From
+        raise ex
+    raise
+""")
+    else:
+        exec("""\
+def Raise(ex=None, From=Ellipsis):
+    if ex:
+        if From is not Ellipsis:
+            if From is not None:
+                raise ex from From
+            elif type(ex.__init__) != type(Exception().__init__):  # class or instance?
+                ex = ex()
+            ex.__context__ = None
+        raise ex
+    raise
+""")
+    Raise.__doc__ = _doc
+    del _doc
+
+
+class Return(LabeledResultException):
+    """
+    Aborts an expression early, but keeps a result value.
+    Must be wrapped in a let().
+
+    >>> let(lambda: progn(
+    ...  1,
+    ...  2,
+    ...  3,))
+    3
+    >>> let(lambda: progn(
+    ...  1,
+    ...  Return(2),
+    ...  3,))
+    2
+
+    Like `return` an empty Return() returns None.
+    >>> let(lambda: progn(
+    ...  1,
+    ...  Return(),
+    ...  3,))
+
+    Like `return`, multiple Return values result in a tuple.
+    >>> let(lambda: progn(
+    ...  1,
+    ...  Return(1,2,3),
+    ...  3,))
+    (1, 2, 3)
+
+    Can return through multiple let()s using a label.
+    >>> let(label='outer', body=lambda a=1,d=4: progn(
+    ...   let(lambda b=42,c=3: progn(
+    ...     a,
+    ...     Return(b,label='outer'),
+    ...     c,)),
+    ...   d,))
+    42
     """
 
+
+# noinspection PyPep8Naming
 def Try(thunk, *Except, **ElseFinally):
     """
+    wraps a try statement
+
     Try() returns the thunk's result normally
     >>> Try(lambda: 1+1)
     2
@@ -584,48 +599,10 @@ def Try(thunk, *Except, **ElseFinally):
     return res
 
 
-# TODO: doctest While, labeled/unlabeled break/continue
-# noinspection PyPep8Naming
-def While(predicate, thunk, label=None, Else=Pass):
-    """
-    >>> from operator import add
-    >>> spam = Var(4)
-    >>> While(lambda:spam.e,lambda:Print(spam.set(-1,add)))
-    3
-    2
-    1
-    0
-    >>> spam.set(1)
-    1
-    >>> While(lambda: spam.e,
-    ...   lambda: Print(spam.set(-1,add)),
-    ...   Else=lambda: Print('done'))
-    0
-    done
-    >>> While(lambda: True,
-    ...   lambda: Print(spam.set(1,add)) if spam.e < 2 else Break(),
-    ...   Else=lambda: Print('not possible'))
-    1
-    2
-
-    """
-
-    try:
-        while predicate():
-            try:
-                thunk()
-            except Continue as c:
-                c.handle(label)
-    except Break as b:
-        b.handle(label)
-        return
-    Else()
-
-
 class Var:
     """
-    a boxed mutable variable, which can be assigned to inside
-    expressions.
+    a locked boxed mutable variable, assignable in expressions.
+
     >>> spam = Var('eggs')  # initial value (required)
     >>> spam
     Var('eggs')
@@ -635,7 +612,7 @@ class Var:
     'eggs'
 
     can assign using .set(), either directly or by modifying current
-    value with an operator
+    value with an operator, which is atomic.
     >>> from operator import sub
     >>> spam.set(44)
     44
@@ -659,8 +636,9 @@ class Var:
             """
             sets Var's element. Optionally augment assignments with oper.
             set() is locked for thread safety, however direct access to
-            .e is not locked, so foo.set(1, operator.add) is a thread-
-            safe increment, but foo.set(foo.e + 1) is not.
+            .e is not locked, so foo.set(1, operator.add) is an atomic
+            increment, but foo.set(foo.e + 1) is not.
+
             The return value is set inside the lock, to make it
             consistent with the update.
             """
@@ -694,14 +672,94 @@ class Var:
 
 
 # noinspection PyPep8Naming
-def With(guard, func):
+def While(predicate, body, label=None, Else=Pass):
     """
-    wraps a with statement; applies func to the result of guard in the
+    wraps a while statement.
+
+    # spam = 4
+    # while spam:
+    #    spam += -1
+    #    print(spam)
+    >>> from operator import add
+    >>> spam = Var(4)
+    >>> While(lambda: spam.e, lambda:
+    ...     Print(spam.set(-1,add)))
+    3
+    2
+    1
+    0
+    >>> spam.set(1)
+    1
+    >>> While(lambda: spam.e, lambda:
+    ...   Print(spam.set(-1,add)),
+    ... Else=lambda:
+    ...   'done')
+    0
+    'done'
+    >>> While(lambda: True, lambda:
+    ...   Print(spam.set(1,add)) if spam.e < 2 else Break(),
+    ... Else=lambda:
+    ...   Print('impossible'))
+    1
+    2
+
+    While also supports labels.
+    >>> While(lambda: True, lambda:progn(
+    ...     While(lambda: True, lambda:
+    ...         Break('done',label='outer')),
+    ...     Print('impossible')),
+    ...     label='outer')
+    'done'
+    """
+
+    try:
+        while predicate():
+            try:
+                body()
+            except Continue as c:
+                c.handle(label)
+    except Break as b:
+        b.handle(label)
+        return b.result
+    return Else()
+
+
+# noinspection PyPep8Naming
+def With(guard, body):
+    """
+    wraps a with statement; applies body to the result of guard in the
     context of guard.
+
+    >>> from contextlib import contextmanager
+    >>> @contextmanager
+    ... def test():
+    ...     Print('enter')
+    ...     try:
+    ...         yield 'spam'
+    ...     except:
+    ...         Print('Caught in manager.')
+    ...     Print('exit')
+
+    With returns the result of body
+    >>> With(test, lambda ans:progn(
+    ...     Print(ans),
+    ...     'The result.',))
+    enter
+    spam
+    exit
+    'The result.'
+
+    exit always happens, like a try/finally
+    >>> With(test, lambda ans:
+    ...     Raise(Exception))
+    enter
+    Caught in manager.
+    exit
+
 
     Unlike with, With supports only one guard, but as pointed out in the
     documentation, a with statement with multiple guards is equivalent to
-    nested withs anyway.
+    nested withs anyway, so
 
     with A() as a, B() as b:
             suite
@@ -717,9 +775,8 @@ def With(guard, func):
         With(B,lambda b:
             progn(...)))
     """
-    # TODO: doctest With
     with guard() as g:
-        return func(g)
+        return body(g)
 
 
 def assign_attr(obj, name, val, oper=None):
@@ -791,9 +848,6 @@ def delitem(obj, index):
     return obj
 
 
-
-
-
 def let(body, args=(), kwargs=Empty, label=None):
     """
     immediately calls body.
@@ -845,9 +899,4 @@ def progn(*body):
     return body[-1]
 
 
-
-
-
 __all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]
-
-
