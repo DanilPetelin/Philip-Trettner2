@@ -40,15 +40,16 @@ Due to optimizations for Python locals, direct local and nonlocal
 assignment statements cannot be emulated as functions, but Var can
 substitute for nonlocals in many cases. For the same reason, direct
 local and nonlocal `del` statements are not supported, but `del` is
-partially supported with delitem. (delattr() is already a builtin)
+partially supported with delitem from core. (delattr() is already a
+builtin)
 
 The augmented assignment statements, += -= *= /= %= &= |= ^= <<= >>= **=
 //=, are partially supported with the operator module combined with
-assign_attr(), assign_item(), and Var.set().
+Var.set() and assign_attr()/assign_item() from core.
 
 Assignment statements, =, are partially supported with let(), and by
-using assign_attr(), assign_item(), and Var.set()
-without the optional operator.
+using Var.set() or assign_attr()/assign_item(), without the optional
+operator.
 
 Use the metaclass directly to substitute for `class`, for example
   X = type('X', (A, B), dict(a=1))
@@ -58,7 +59,14 @@ is the same as
 A substitute for `def` is not provided here, but `lambda` is a viable
 alternative now that most statements are available as expressions.
 Multiple sequential expressions are available in lambda via progn.
-Multiple exits are available via let/progn/Return
+Multiple exits are available via let/progn/Return:
+
+    lambda *args: let(lambda:progn(
+        expression1,
+        expression2,
+        ...
+        Return(...),
+        ...))
 
 See stack.Def and macros.L1 for two alternative `def` substitutes.
 """
@@ -777,75 +785,6 @@ def With(guard, body):
     """
     with guard() as g:
         return body(g)
-
-
-def assign_attr(obj, name, val, oper=None):
-    """
-    does an augmented assignment to the named attr of obj
-    returns obj.
-
-    does a simple replacement if no operator is specified
-
-    usually used in combination with the operator module,
-    though any appropriate binary function may be used.
-    >>> from operator import add, iadd
-    >>> spam = lambda:None
-    >>> assign_attr(assign_attr(spam,'eggs',40),'eggs',1,add).eggs
-    41
-    >>> assign_attr(spam,'eggs',1,iadd).eggs
-    42
-    """
-    if oper:
-        setattr(obj, name, oper(getattr(obj, name), val))
-    else:
-        setattr(obj, name, val)
-    return obj
-
-
-def assign_item(obj, index, val, oper=None):
-    """
-    does an augmented assignment to the indexed (keyed)
-    item of obj. returns obj for chaining.
-
-    does a simple replacement if no operator is specified
-
-    usually used in combination with the operator module,
-    though any appropriate binary function may be used.
-    >>> from operator import add
-    >>> spam = [40]
-    >>> assign_item(spam,0, 2,add)
-    [42]
-    >>> assign_item(globals(),'eggs',  12)['eggs']
-    12
-    >>> eggs
-    12
-    """
-    if oper:
-        obj[index] = oper(obj[index], val)
-    else:
-        obj[index] = val
-    return obj
-
-
-def delitem(obj, index):
-    """
-    Deletes the element in obj at index, and returns obj for chaining
-    >>> spam = [1, 2, 3]
-    >>> delitem(spam, 1)
-    [1, 3]
-    >>> spam = {'one': 1, 'two': 2}
-    >>> delitem(spam, 'one')
-    {'two': 2}
-    >>> progn(delitem(globals(), 'spam'), None)
-    >>> try:
-    ...    spam
-    ...    assert False
-    ... except NameError as ne:
-    ...    Print(repr(ne))
-    NameError("name 'spam' is not defined",)
-    """
-    del obj[index]
-    return obj
 
 
 def let(body, args=(), kwargs=Empty, label=None):

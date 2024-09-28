@@ -290,6 +290,76 @@ def identity(x):
     """
     return x
 
+
+def assign_attr(obj, name, val, oper=None):
+    """
+    does an augmented assignment to the named attr of obj
+    returns obj.
+
+    does a simple replacement if no operator is specified
+
+    usually used in combination with the operator module,
+    though any appropriate binary function may be used.
+    >>> from operator import add, iadd
+    >>> spam = lambda:None
+    >>> assign_attr(assign_attr(spam,'eggs',40),'eggs',1,add).eggs
+    41
+    >>> assign_attr(spam,'eggs',1,iadd).eggs
+    42
+    """
+    if oper:
+        setattr(obj, name, oper(getattr(obj, name), val))
+    else:
+        setattr(obj, name, val)
+    return obj
+
+
+def assign_item(obj, index, val, oper=None):
+    """
+    does an augmented assignment to the indexed (keyed)
+    item of obj. returns obj for chaining.
+
+    does a simple replacement if no operator is specified
+
+    usually used in combination with the operator module,
+    though any appropriate binary function may be used.
+    >>> from operator import add
+    >>> spam = [40]
+    >>> assign_item(spam,0, 2,add)
+    [42]
+    >>> assign_item(globals(),'eggs',  12)['eggs']
+    12
+    >>> eggs
+    12
+    """
+    if oper:
+        obj[index] = oper(obj[index], val)
+    else:
+        obj[index] = val
+    return obj
+
+
+def delitem(obj, index):
+    """
+    Deletes the element in obj at index, and returns obj for chaining
+    >>> spam = [1, 2, 3]
+    >>> delitem(spam, 1)
+    [1, 3]
+    >>> spam = {'one': 1, 'two': 2}
+    >>> delitem(spam, 'one')
+    {'two': 2}
+    >>> progn(delitem(globals(), 'spam'), None)
+    >>> try:
+    ...    spam
+    ...    assert False
+    ... except NameError as ne:
+    ...    Print(repr(ne))
+    NameError("name 'spam' is not defined",)
+    """
+    del obj[index]
+    return obj
+
+
 # def funcall(func, *args, **kwargs):
 #     """
 #     Immediately calls the function with the given arguments.
