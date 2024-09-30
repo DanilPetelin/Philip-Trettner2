@@ -348,7 +348,7 @@ def delitem(obj, index):
     >>> spam = {'one': 1, 'two': 2}
     >>> delitem(spam, 'one')
     {'two': 2}
-    >>> progn(delitem(globals(), 'spam'), None)
+    >>> (delitem(globals(), 'spam'), None)[-1]
     >>> try:
     ...    spam
     ...    assert False
