@@ -21,10 +21,20 @@ including (for example) in eval and lambda. As higher-order functions,
 these substitutes can be composed, curried, returned, and passed as
 arguments, unlike the statements they emulate, which must stand alone.
 
-Despite convention for Python function names, the functions Assert,
-Break, Continue, Elif/Else, For/Else, Import/From, Pass, Raise/From,
-let/Return, Try/Except/Else/Finally, With, and While/Else are
-capitalized to avoid conflicts with the original Python keywords.
+Typical module import is:
+
+    from drython.statement import *
+
+This includes
+`Var` (thread-locked nonlocal assignment emulation),
+`let` (local assignment emulation and Return() support),
+`progn` (for side effects in expressions, especially lambdas),
+plus the 13 keyword statement replacements.
+
+Despite convention for Python function names, the 13 replacements
+Assert, Break, Continue, Elif/Else, For/Else, Import/From, Pass, Print,
+Raise/From, let/Return, Try/Except/Else/Finally, With, and While/Else
+are capitalized to avoid conflicts with the original Python keywords.
 
 Functions for the keywords `False`, `None`, `True`, `and`, `if`,
 `in`, `is`, `lambda`, `not`, `or`, and `yield` are not provided because
@@ -40,8 +50,8 @@ Due to optimizations for Python locals, direct local and nonlocal
 assignment statements cannot be emulated as functions, but Var can
 substitute for nonlocals in many cases. For the same reason, direct
 local and nonlocal `del` statements are not supported, but `del` is
-partially supported with delitem from core. (delattr() is already a
-builtin)
+partially supported with delitem from drython.core. (delattr() is
+already a builtin)
 
 The augmented assignment statements, += -= *= /= %= &= |= ^= <<= >>= **=
 //=, are partially supported with the operator module combined with
