@@ -114,6 +114,8 @@ Ready for the next step?
 
 Tired of writing `lambda: progn(...)` over and over again in the shiny new
 DSL you implemented after reading the last section?
+Tired of writing `lambda ...: let(lambda:progn(...,Return()))` when you just needed an anonymous
+function?
 That sure sounds like a boilerplate code problem.
 You need better abstractions again.
 
@@ -169,7 +171,7 @@ includes many useful basic macros to get you started.
 ## the stack module ##
 
 `Def` is an alternative way to write anonymous functions.
-It is another executable data structure in the tradition of stack-languages like Forth,
+It is another executable data structure in the tradition of stack languages like Forth,
 Factor, and Joy.
 
 A Stack represents a composition of special
