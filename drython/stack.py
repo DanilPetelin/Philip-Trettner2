@@ -30,7 +30,7 @@ from drython.core import entuple, efset
 from drython.statement import Raise
 
 
-class Stack:
+class Stack(object):
     """
     Stack is a data structure for metaprogramming.
 
@@ -173,7 +173,7 @@ class Stack:
 # Combinator constructors
 # ###
 
-class Combinator:
+class Combinator(object):
     """
     Marks func as a combinator. Combinators act on a Stack, and return a Stack.
 

@@ -216,7 +216,7 @@ def edict(*args):
     return dict(partition(args))
 
 
-class Namespace:
+class Namespace(object):
     """
     An "empty" object for containing attrs.
     Not completely empty since it inherits from object

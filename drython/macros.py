@@ -67,7 +67,7 @@ class Scope(Mapping):
         self.nonlocals |= set(names)
 
 
-# class SLambda:
+# class SLambda(object):
 #     def __init__(self, symbols, body, varg, kwonlys, kwvarg, defaults):
 #         self.body = body
 #         self.varg = varg
@@ -96,7 +96,7 @@ class Scope(Mapping):
 #         return lx
 
 
-class SLambda1:
+class SLambda1(object):
     def __init__(self, symbol, body):
         self.body = body
         self.symbol = symbol
@@ -131,7 +131,7 @@ def L1(symbol, *body):
 #     return SLambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
 
 
-class SSetQ:
+class SSetQ(object):
     def __init__(self, pairs):
         self.pairs = ((q, Quote.of(x)) for q, x in partition(pairs))
 
@@ -153,7 +153,7 @@ def setq(*pairs):
     return SSetQ(pairs)
 
 
-class SNonlocal:
+class SNonlocal(object):
     def __init__(self, symbols):
         self.symbols = symbols
 
@@ -167,7 +167,7 @@ def Nonlocal(*symbols):
     return SNonlocal(symbols)
 
 
-class SThunk:
+class SThunk(object):
     def __init__(self, body):
         self.body = Quote.of(body)
 
@@ -204,7 +204,7 @@ def s_eval(body):
     return SEval(body)
 
 
-class SEval:
+class SEval(object):
     def __init__(self, body):
         self.body = body
 
@@ -317,5 +317,31 @@ def _private():
 
 thr = None
 thrt = None
+
 _private()
 del _private
+
+# def GENX(func,iterable,predicate):
+# TODO: genexprs
+
+
+# def Def
+
+# TODO: port Hy builtins/core?
+
+
+# TODO: comprehension macros
+
+# def compose1(f,g):
+#     return lambda *args,**kwargs: f(g(*args,**kwargs))
+#
+# def compose(f,g):
+#     return lambda *args,**kwargs: f(*g(*args,**kwargs))
+
+# @macro
+# def Lambda(arg,body):
+#     return eval('lambda %s:body'%arg)
+
+# TODO: doctests
+# import doctest; doctest.testmod()
+

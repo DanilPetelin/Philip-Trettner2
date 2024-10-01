@@ -71,7 +71,7 @@ alternative now that most statements are available as expressions.
 Multiple sequential expressions are available in lambda via progn.
 Multiple exits are available via let/progn/Return:
 
-    lambda *args: let(lambda:progn(
+    lambda ...: let(lambda:progn(
         expression1,
         expression2,
         ...
@@ -119,7 +119,7 @@ __test__ = {}
 
 
 def _private():
-    class PassType:
+    class PassType(object):
         """
         A no-operation empty thunk; returns None.
         Pass can substitute for `pass` where a statement substitution requires
@@ -617,7 +617,7 @@ def Try(thunk, *Except, **ElseFinally):
     return res
 
 
-class Var:
+class Var(object):
     """
     a locked boxed mutable variable, assignable in expressions.
 

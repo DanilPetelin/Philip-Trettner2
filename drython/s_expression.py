@@ -16,12 +16,12 @@
 """
 S-expression for Python, with symbol and macro support.
 
-Module usage:
-from expression.s_expression import S
+Typical module import:
 
+    from drython.s_expression import S
 """
-# s_expression.py does not depend on other modules in this package
-# future versions may safely depend on core.py and statement.py
+# s_expression may safely depend on core and statement
+
 from __future__ import absolute_import, division
 from drython.statement import Print
 
@@ -31,7 +31,7 @@ from drython.core import Empty
 from drython.statement import Var, Raise
 
 
-class SExpression:
+class SExpression(object):
     """
     S-expressions are executable data structures for metaprogramming.
 
@@ -135,7 +135,7 @@ class SymbolError(NameError):
     pass
 
 
-class Quote:
+class Quote(object):
     __slots__ = ('item',)
 
     def __init__(self, item):
@@ -223,7 +223,10 @@ def _private():
             SymbolType('1foo')
             """
             # or not self.isidentifier():
-            if iskeyword(self) or not self[0].isalpha() or not self[1:].replace('_', 'X').isalnum():
+            if(iskeyword(self)
+               or not (self[0].isalpha()
+                       or self[0] == '_')
+               or not self[1:].replace('_', 'X').isalnum()):
                 return 'SymbolType(%s)' % repr(self.data)
             return 'S.' + self.data
 
@@ -292,19 +295,17 @@ del _private
 
 
 def _private():
-    class SSyntax:
+    class SSyntax(object):
         """
         prefix for creating S-expressions and Symbols.
         see help('drython.sexpression') for further details.
         """
+        __slots__ = ()
 
         def __call__(self, func, *args, **kwargs):
             return SExpression(func, *args, **kwargs)
 
-        # def __getattribute__(self, attr):
-        #     return SymbolType(attr)
-
-        def __getattr__(self, attr):
+        def __getattribute__(self, attr):
             return SymbolType(attr)
 
     return SSyntax()
@@ -324,26 +325,4 @@ def macro(func):
     func._macro_ = None
     return func
 
-# def GENX(func,iterable,predicate):
-# TODO: genexprs
 
-
-# def Def
-
-# TODO: port Hy builtins/core?
-
-
-# TODO: comprehension macros
-
-# def compose1(f,g):
-#     return lambda *args,**kwargs: f(g(*args,**kwargs))
-#
-# def compose(f,g):
-#     return lambda *args,**kwargs: f(*g(*args,**kwargs))
-
-# @macro
-# def Lambda(arg,body):
-#     return eval('lambda %s:body'%arg)
-
-# TODO: doctests
-# import doctest; doctest.testmod()
