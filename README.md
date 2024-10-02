@@ -1,4 +1,5 @@
-# Drython (Don't-repeat-yourself Python)
+# Drython #
+**Or, Don't-repeat-yourself Python**
 
 Drython is a metaprogramming library for Python.
 Metaprogramming is writing programs that write programs---a
@@ -46,7 +47,7 @@ between Python versions and implementations.
 There's an easier way. Drython provides *executable* data structures that are both simpler than AST,
 and are easier to work with than text.
 Drython specifically avoids using ast and bytecode manipulation,
-so it's portable across implementations.
+so it's portable across implementations, including CPython2.7/3.1+, PyPy, Jython, and IronPython.
 
 ## Drython's statement module ##
 
