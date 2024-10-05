@@ -14,17 +14,30 @@
 
 
 """
-S-expression for Python, with symbol and macro support.
+Symbolic-expression for Python, with macro support.
 
 Typical module import:
 
     from drython.s_expression import S
+
+S is a prefix for both symbols and s-expressions
+Symbol: `S.foo`,
+S-expression: `S(Print,'foo')`.
 """
-# s_expression may safely depend on core and statement
+# s_expression may safely depend on .core and .statement
 
 from __future__ import absolute_import, division
 from drython.statement import Print
 
+import sys
+
+if sys.version_info[0] == 2:
+    # noinspection PyUnresolvedReferences,PyCompatibility
+    from UserString import UserString
+else:
+    from collections import UserString
+
+from keyword import iskeyword
 from operator import add
 
 from drython.core import Empty
@@ -35,7 +48,7 @@ class SExpression(object):
     """
     S-expressions are executable data structures for metaprogramming.
 
-    An S object represents a potential function call.
+    An SExpression object represents a potential function call.
 
     The function isn't actually called until invocation
     of the .s_eval() method, which will also .s_eval() any
@@ -50,7 +63,9 @@ class SExpression(object):
     24
     >>> spam.s_eval()  # works more than once
     24
-    >>> spam = S(add,S(mul,4,10),2)  # represents >>> add(mul(4, 10), 2)  # 4*10 + 2
+
+    represents >>> add(mul(4, 10), 2)  # 4*10 + 2
+    >>> spam = S(add,S(mul,4,10),2)
     >>> spam.s_eval()
     42
 
@@ -100,7 +115,6 @@ class SExpression(object):
     ...   True, S(Print,'yes'), S(Print,'no')).s_eval()
     yes
     no
-
     """
 
     def __init__(self, func, *args, **kwargs):
@@ -108,13 +122,13 @@ class SExpression(object):
         self.args = args
         self.kwargs = kwargs
 
-    def s_eval(self, scope=None):
-        func = try_s_eval(self.func, scope)
+    def s_eval(self, scope=Empty):
+        func = s_eval_in_scope(self.func, scope)
         if hasattr(func, '_macro_'):
-            return try_s_eval(func(*self.args, **self.kwargs), scope)
+            return s_eval_in_scope(func(*self.args, **self.kwargs), scope)
         return func(
-            *(try_s_eval(a, scope) for a in self.args),
-            **{k: try_s_eval(v, scope) for k, v in self.kwargs.items()})
+            *(s_eval_in_scope(a, scope) for a in self.args),
+            **{k: s_eval_in_scope(v, scope) for k, v in self.kwargs.items()})
 
     def __repr__(self):
         indent = '\n  '
@@ -126,134 +140,109 @@ class SExpression(object):
             ',{0}**{1}'.format(indent, repr(self.kwargs).replace('\n', indent))
             if self.kwargs else '')
 
-def try_s_eval(element, scope):
+
+def s_eval_in_scope(element, scope):
+    """
+    Evaluates the element in the given scope using its s_eval method, if present.
+    Otherwise returns the element unevaluated.
+
+    >>> from operator import sub
+    >>> s_eval_in_scope(S(sub,S.x,S.y), dict(x=10,y=3))
+    7
+
+    integers are not s-evaluable, so evaluate to themselves.
+    >>> s_eval_in_scope(10-7, globals())
+    3
+    """
     if hasattr(element, 's_eval'):
         return element.s_eval(scope)
     return element
+
 
 class SymbolError(NameError):
     pass
 
 
-class Quote(object):
-    __slots__ = ('item',)
+class Symbol(UserString, str):
+    """
+    Symbols for S-expressions.
 
-    def __init__(self, item):
-        self.item = item
+    A Symbol represents a potential Python identifier.
+    >>> spam = 1
+    >>> Print(spam)
+    1
+    >>> no_symbol = S(Print,spam)
+    >>> no_symbol  # spam already resolved to 1
+    S(<built-in function print>,
+      1)
+    >>> with_symbol = S(Print,S.spam)
+    >>> with_symbol  # S.spam is still a symbol
+    S(<built-in function print>,
+      S.spam)
+    >>> no_symbol.s_eval()
+    1
 
-    def s_eval(self, scope):
-        return self.item
+    Symbols require a containing scope
+    >>> with_symbol.s_eval(globals())
+    1
+    >>> spam = 8
+
+    doesn't change, was baked-in
+    >>> no_symbol.s_eval(globals())
+    1
+
+    globals()['spam'] == 8
+    >>> with_symbol.s_eval(globals())
+    8
+
+    value depends on scope
+    >>> with_symbol.s_eval(dict(spam=42))
+    42
+
+    Macros get Symbols unevaluated. Unevaluated Symbols work like strings.
+    So macros can also rewrite Symbols
+    >>> S.quux + S.norf
+    S.quuxnorf
+    """
 
     def __repr__(self):
-        return 'Quote(%s)' % repr(self.item)
-
-    @classmethod
-    def of(cls, item):
         """
-        Unlike the usual __init__(), of() will not
-        quote the item if it is already s-evaluable
+        >>> S.foo
+        S.foo
+        >>> S.fo + S.r
+        Symbol('for')
+        >>> Symbol('1') + S.foo
+        Symbol('1foo')
         """
-        if hasattr(item, 's_eval'):
-            return item
-        return cls(item)
+        # or not self.isidentifier(): <- not in 2.7
+        if (iskeyword(self)
+            or not (self[0].isalpha()
+                    or self[0] == '_')
+            or not self[1:].replace('_', 'X').isalnum()):
+            return 'Symbol(%s)' % repr(self.data)
+        return 'S.' + self.data
 
-
-def _private():
-    import sys
-    if sys.version_info[0] == 2:
-        from UserString import UserString
-    else:
-        from collections import UserString
-    from keyword import iskeyword
-
-    # noinspection PyShadowingNames
-    class SymbolType(UserString, str):
-        """
-        Symbols for S-expressions.
-
-        A Symbol represents a potential Python identifier.
-        >>> spam = 1
-        >>> Print(spam)
-        1
-        >>> no_symbol = S(Print,spam)
-        >>> no_symbol  # spam already resolved to 1
-        S(<built-in function print>,
-          1)
-        >>> with_symbol = S(Print,S.spam)
-        >>> with_symbol  # S.spam is still a symbol
-        S(<built-in function print>,
-          S.spam)
-        >>> no_symbol.s_eval()
-        1
-
-        Symbols require a containing scope
-        >>> with_symbol.s_eval(globals())
-        1
-        >>> spam = 8
-
-        doesn't change, was baked-in
-        >>> no_symbol.s_eval(globals())
-        1
-
-        globals()['spam'] == 8
-        >>> with_symbol.s_eval(globals())
-        8
-
-        value depends on scope
-        >>> with_symbol.s_eval(dict(spam=42))
-        42
-
-        Macros get Symbols unevaluated. Unevaluated Symbols work like strings.
-        So macros can also rewrite Symbols
-        >>> S.quux + S.norf
-        S.quuxnorf
-        """
-
-        # def __init__(self, name):
-        #     super().__init__(name)
-        #     # self.__name__ = 'SymbolType'
-
-        def __repr__(self):
-            """
-            >>> S.foo
-            S.foo
-            >>> S.fo + S.r
-            SymbolType('for')
-            >>> SymbolType('1') + S.foo
-            SymbolType('1foo')
-            """
-            # or not self.isidentifier():
-            if(iskeyword(self)
-               or not (self[0].isalpha()
-                       or self[0] == '_')
-               or not self[1:].replace('_', 'X').isalnum()):
-                return 'SymbolType(%s)' % repr(self.data)
-            return 'S.' + self.data
-
-        def s_eval(self, scope=Empty):
-            """ looks up itself in scope """
-            try:
-                return scope[self]
-            except KeyError as ex:
-                Raise(SymbolError(
-                    'Symbol %s is not bound in the given scope' % repr(self)
-                ), From=ex)
-            except TypeError as ex:
-                Raise(SymbolError(
-                    'Symbol %s is not bound in the given scope' % repr(self)
-                ), From=ex)
-
-    return SymbolType
-
-
-SymbolType = _private()
-del _private
+    def s_eval(self, scope=Empty):
+        """ looks up itself in scope """
+        try:
+            return scope[self]
+        except KeyError:
+            Raise(SymbolError(
+                'Symbol %s is not bound in the given scope' % repr(self)
+            ), From=None)
+            # except TypeError as ex:
+            #     Raise(SymbolError(
+            #         'Symbol %s is not bound in the given scope' % repr(self)
+            #     ), From=ex)
 
 
 def _private():
     _gensym_counter = Var(0)
 
-    # noinspection PyShadowingNames
+    # noinspection PyGlobalUndefined
+    global gensym
+
+    # noinspection PyRedeclaration,PyUnusedLocal
     def gensym(prefix=''):
         """
         generates a unique Symbol. Gensyms are not valid identifiers,
@@ -275,22 +264,20 @@ def _private():
         and macro debugging. The suffix is the gensym count at creation.
 
         >>> gensym()
-        SymbolType('#:$1')
+        Symbol('#:$1')
         >>> gensym(S.foo)  # foo prefix
-        SymbolType('#:foo$2')
+        Symbol('#:foo$2')
         >>> gensym(S.foo)  # not the same symbol as above
-        SymbolType('#:foo$3')
+        Symbol('#:foo$3')
         >>> gensym('foo')  # strings also work.
-        SymbolType('#:foo$4')
+        Symbol('#:foo$4')
         """
 
-        return SymbolType(
+        return Symbol(
             '#:{0}${1}'.format(prefix, str(_gensym_counter.set(1, add))))
 
-    return gensym
 
-
-gensym = _private()
+_private()
 del _private
 
 
@@ -298,7 +285,7 @@ def _private():
     class SSyntax(object):
         """
         prefix for creating S-expressions and Symbols.
-        see help('drython.sexpression') for further details.
+        see help('drython.s_expression') for further details.
         """
         __slots__ = ()
 
@@ -306,7 +293,7 @@ def _private():
             return SExpression(func, *args, **kwargs)
 
         def __getattribute__(self, attr):
-            return SymbolType(attr)
+            return Symbol(attr)
 
     return SSyntax()
 
@@ -324,5 +311,3 @@ def macro(func):
     """
     func._macro_ = None
     return func
-
-

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-Basic utilites for use with the other modules.
+Basic utilities for use with the other modules.
 """
 
 # Other modules in this package may require core.
@@ -22,11 +22,12 @@ Basic utilites for use with the other modules.
 
 from __future__ import absolute_import, division, print_function
 
-from collections import Mapping, Set
+from collections import Mapping
 import sys
 from itertools import islice
 
 if sys.version_info[0] == 2:
+    # noinspection PyUnresolvedReferences
     from itertools import izip_longest as zip_longest
 else:
     from itertools import zip_longest
@@ -128,7 +129,7 @@ def star(func):
 
 def unstar(func):
     """
-    Converts a fuction of one iterable to a function of its elements.
+    Converts a function of one iterable to a function of its elements.
     >>> list((1, 2, 3))
     [1, 2, 3]
     >>> unstar(list)(1, 2, 3)
@@ -358,7 +359,6 @@ def delitem(obj, index):
     """
     del obj[index]
     return obj
-
 
 # def funcall(func, *args, **kwargs):
 #     """

@@ -19,7 +19,7 @@ from drython.statement import Print
 from collections import Mapping
 
 from drython.core import partition
-from drython.s_expression import S, Quote, macro
+from drython.s_expression import S, macro, s_eval_in_scope
 from drython.statement import Elif, progn, Raise
 
 
@@ -133,18 +133,22 @@ def L1(symbol, *body):
 
 class SSetQ(object):
     def __init__(self, pairs):
-        self.pairs = ((q, Quote.of(x)) for q, x in partition(pairs))
+        self.pairs = partition(pairs)
 
     def s_eval(self, scope):
-        for var, val in self.pairs:
-            scope[var] = val.s_eval(scope)
+        for k, v in self.pairs:
+            scope[k] = s_eval_in_scope(v, scope)
 
 
 @macro
 def setq(*pairs):
     """
     >>> from operator import add
-    >>> S(setq,S.spam,1,S.eggs,S(add,1,S.spam)).s_eval(globals())
+    >>> S(setq,
+    ...   S.spam,1,
+    ...   S.eggs,S(add,
+    ...            1,
+    ...            S.spam)).s_eval(globals())
     >>> spam
     1
     >>> eggs
@@ -169,10 +173,10 @@ def Nonlocal(*symbols):
 
 class SThunk(object):
     def __init__(self, body):
-        self.body = Quote.of(body)
+        self.body = body
 
     def s_eval(self, scope=None):
-        return lambda: self.body.s_eval(scope)
+        return lambda: s_eval_in_scope(self.body, scope)
 
 
 @macro
@@ -345,3 +349,26 @@ del _private
 # TODO: doctests
 # import doctest; doctest.testmod()
 
+
+# # s_eval_in_scope may have made this obsolete
+# class Quote(object):
+#     __slots__ = ('item',)
+#
+#     def __init__(self, item):
+#         self.item = item
+#
+#     def s_eval(self, scope):
+#         return self.item
+#
+#     def __repr__(self):
+#         return 'Quote(%s)' % repr(self.item)
+#
+#     @classmethod
+#     def of(cls, item):
+#         """
+#         Unlike the usual __init__(), of() will not
+#         quote the item if it is already s-evaluable
+#         """
+#         if hasattr(item, 's_eval'):
+#             return item
+#         return cls(item)

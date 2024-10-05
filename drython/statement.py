@@ -128,6 +128,7 @@ def _private():
         like
         >>> (lambda: Pass())()
         """
+        __slots__ = ()
 
         def __call__(self):
             return None
@@ -409,7 +410,7 @@ def Import(item, *items, **package_From):
 Print = print
 
 
-# noinspection PyPep8Naming
+# noinspection PyPep8Naming,PyCompatibility
 def Raise(ex=None, From=Ellipsis):
     """
     raises an exception.
@@ -467,6 +468,7 @@ if sys.version_info[0] >= 3:
     _doc = Raise.__doc__
     # check for 3.3+ PEP 409 which allows raise ... from None
     if sys.version_info[1] >= 3:
+        # noinspection PyCompatibility
         exec("""\
 def Raise(ex=None, From=Ellipsis):
     if ex:
@@ -476,6 +478,7 @@ def Raise(ex=None, From=Ellipsis):
     raise
 """)
     else:
+        # noinspection PyCompatibility
         exec("""\
 def Raise(ex=None, From=Ellipsis):
     if ex:
