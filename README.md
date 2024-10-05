@@ -20,9 +20,13 @@ tailor-fit to the problem at hand. One might think the addition of a DSL makes t
 to understand, but if it makes the program a tenth as long as it would have been without it,
 (not unusual), then it's worth it.
 
+Python already includes some metaprogramming facilities.
+Using decorators to modify functions is a limited example.
+Using metaclasses to rewrite class declarations is a more powerful example.
+
+But Python has more general metaprogramming capabilities.
 The secret to metaprogramming is treating code as just another kind of data.
 
-Python already includes some metaprogramming facilities.
 For example, Python can write text files, including .py files, which it can then import as modules.
 Python can also create strings, including strings containing Python code, which it can execute with
 the `exec()` function.
@@ -38,7 +42,7 @@ and manipulation of abstract syntax trees using the `ast` module, which is arcan
     print(ast.dump(ast.parse('''print("Hello, World!")''')))
     # Module(body=[Expr(value=Call(func=Name(id='print', ctx=Load()), args=[Str(s='Hello, World!')], keywords=[], starargs=None, kwargs=None))])
 
-Reading AST is easier than writing it (malformed AST can segfault Python),
+Reading AST is easier than writing it (malformed AST can segfault CPython),
 but if it took that much for a simple `print('Hello, World!')`,
 you can imagine it gets complex fast.
 Unfortunately, bytecode and abstract syntax trees are implementation details subject to change
@@ -52,13 +56,13 @@ so it's portable across implementations, including CPython2.7/3.1+, PyPy, Jython
 ## Drython's statement module ##
 
 Can you re-implement a simple if-statement in Python?
-I mean without writing an interpreter or compiler, or modifying Python itself?
+I mean without writing a text compiler or interpreter, or modifying Python itself?
 Sure, you don't have to, Python has a perfectly good if-statement already, but can you?
 A DSL might need a three-way if-statement (-/+/0), or something like a switch-case.
 Yes, you can use the boilerplate cascading-elif pattern instead
 for any of your complex branching needs, but that's not an abstraction, is it?
-You have to re-write the logic imitating the switch-case (or what-have-you).
-Every. Single. Time.
+You have to re-write the logic imitating the switch-case (or what-have-you)
+**every single time**.
 If you can't make a simple `if` substitute,
 how can you expect to make a complex one when you need it?
 
@@ -79,16 +83,16 @@ The `{}` isn't a dictionary; it's a code block.
 The `True` boolean has an `iftrue_iffalse` method that always executes the then-block,
 but `False` has a different version of `iftrue_iffalse` that only executes the else-block.
 Is that cool or what?
-Too bad Python doesn't have those blocks, or re-implementing `if` would be easy. Or does it?
+Too bad Python doesn't have those blocks things, or re-implementing `if` would be easy. Or does it?
 
 Actually, a code block is just an anonymous function.
 Python calls it `lambda`.
 Unfortunately, lambdas in Python can't contain statements, or this could work in Python too.
 Or can they?
 
-With drython, they can.
+With drython's statement module, they can.
 
-Drython's statement module contains function substitutes for every
+The statement module contains expression substitutes for every
 Python statement that isn't already an expression.
 They work in lambdas.
 They work in `eval()`.
@@ -98,14 +102,18 @@ This makes them a lot simpler than AST, and therefore easier to use.
 
 Too bad `lambda` can't have multiple expressions, or this might actually work.
 Or can it?
+
 What if you had an expression that contained multiple expressions,
 and executed them one-by-one in order?
-You do. It's a tuple literal.
-What if you just want to return the value of the last statement,
-instead of all of them?
-Use drython's `progn` function instead, also found in the statement module.
+You do. It's a tuple literal. Think of the commas as semicolons and you get the idea.
 
-Ready to write that `if`? (If not, look at the `Elif()` function in the statement module for hints.)
+What if you just want to return the value of the last "statement",
+instead of a tuple of all of them?
+Declare a tuple and immediately index it `(...)[-1]`.
+The included `progn` function does exactly this.
+
+Ready to write that `if`?
+(If not, look at the `Elif()` function in the statement module for hints.)
 Congratulations, you've just learned new abstractions.
 You can extend Python's syntax and write your DSL in that.
 No need to write your own compiler or interpreter, because it's still just Python.
@@ -113,8 +121,6 @@ Ready for the next step?
 
 ## s-expressions ##
 
-Tired of writing `lambda: progn(...)` over and over again in the shiny new
-DSL you implemented after reading the last section?
 Tired of writing `lambda ...: let(lambda:progn(...,Return()))` when you just needed an anonymous
 function?
 That sure sounds like a boilerplate code problem.

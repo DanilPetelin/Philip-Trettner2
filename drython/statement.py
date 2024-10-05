@@ -69,14 +69,13 @@ is the same as
 A substitute for `def` is not provided here, but `lambda` is a viable
 alternative now that most statements are available as expressions.
 Multiple sequential expressions are available in lambda via progn.
-Multiple exits are available via let/progn/Return:
+Multiple exits are available via let/Return:
 
-    lambda ...: let(lambda:progn(
+    lambda ...: let(lambda:(
         expression1,
         expression2,
         ...
-        Return(...),
-        ...))
+        Return(...)))
 
 See stack.Def and macros.L1 for two alternative `def` substitutes.
 """
