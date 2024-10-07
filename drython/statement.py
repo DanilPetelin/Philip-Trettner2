@@ -135,9 +135,14 @@ def _private():
         def __repr__(self):
             return 'Pass'
 
+    res = PassType()
+    def __init__(self):
+        raise TypeError("cannot create 'PassType' instances")
+    PassType.__init__ = __init__
+
     __test__[PassType.__name__] = PassType.__doc__
 
-    return PassType()
+    return res
 
 
 Pass = _private()
