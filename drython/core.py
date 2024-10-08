@@ -108,12 +108,37 @@ def _private():
 
     __test__[EmptyType.__name__] = EmptyType.__doc__
 
-    return EmptyType()
+    res = EmptyType()
+    def __init__(self):
+        raise TypeError("cannot create 'EmptyType' instances")
+    EmptyType.__init__ = __init__
+    return res
 
 
 Empty = _private()
 del _private
 
+
+# class Arguments(Mapping):
+#     def __getitem__(self, key):
+#         return self.kwargs.get(key, self.args[key])
+#
+#     def __iter__(self):
+#         def it():
+#             for i in range(len(self.args)):
+#                 yield i
+#             for k in self.kwargs:
+#                 yield k
+#
+#     def __len__(self):
+#         return len(self.args) + len(self.kwargs)
+#
+#     def __init__(self, *args, **kwargs):
+#         self.args = tuple(args)
+#         self.kwargs = MappingProxyType(kwargs)
+#
+#     def apply(self, func):
+#         return func(*self.args, **self.kwargs)
 
 def star(func):
     """
@@ -239,17 +264,8 @@ class Namespace(object):
             ', '.join('{0}={1}'.format(k, repr(v))
                       for k, v in self.__dict__.items()))
 
-# prog1 = lambda *body: body[0]
-# prog1.__doc__ = '''\
-# returns the first argument.
-# >>> prog1(1, 1+1, 1+1+1)
-# 1
-# '''
-
 
 _sentinel = object()
-
-
 def partition(iterable, n=2, step=None, fillvalue=_sentinel):
     """
     Chunks iterable into tuples of length n. (default pairs)
