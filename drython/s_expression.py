@@ -59,24 +59,24 @@ class SExpression(object):
     S(<built-in function add>,
       20,
       4)
-    >>> spam.s_eval()  # same as >>> add(20,4)
+    >>> spam.s_eval({})  # same as >>> add(20,4)
     24
-    >>> spam.s_eval()  # works more than once
+    >>> spam.s_eval({})  # works more than once
     24
 
     represents >>> add(mul(4, 10), 2)  # 4*10 + 2
     >>> spam = S(add,S(mul,4,10),2)
-    >>> spam.s_eval()
+    >>> spam.s_eval({})
     42
 
     Even the function argument can be a nested S-expression
-    >>> S(S(lambda a,b: a and b, add,mul),2,3).s_eval()
+    >>> S(S(lambda a,b: a and b, add,mul),2,3).s_eval({})
     6
-    >>> S(S(lambda a,b: a or b, add,mul),2,3).s_eval()
+    >>> S(S(lambda a,b: a or b, add,mul),2,3).s_eval({})
     5
 
     Keywords also work
-    >>> S(Print,1,2,3,sep='::').s_eval()
+    >>> S(Print,1,2,3,sep='::').s_eval({})
     1::2::3
 
     Important: SExpression will not peek into other data structures to evaluate
@@ -85,18 +85,18 @@ class SExpression(object):
 
     This doesn't print 'test'.
     >>> identity = lambda x: x
-    >>> S(identity,[S(Print,'test')]).s_eval()
+    >>> S(identity,[S(Print,'test')]).s_eval({})
     [S(<built-in function print>,
       'test')]
 
     This does, since it uses another S-expression to make the list.
     >>> from drython.core import enlist
-    >>> S(identity,S(enlist,S(Print,'test'))).s_eval()
+    >>> S(identity,S(enlist,S(Print,'test'))).s_eval({})
     test
     [None]
 
     Explicit evaluation also works.
-    >>> S(identity,[S(Print,'test').s_eval()]).s_eval()
+    >>> S(identity,[S(Print,'test').s_eval(globals())]).s_eval(globals())
     test
     [None]
 
@@ -104,15 +104,15 @@ class SExpression(object):
     These are given any nested S objects unevaluated, and return a
     new object to be evaluated.
     >>> from drython.macros import If
-    >>> S(If, True, S(Print,'yes'), S(Print,'no')).s_eval()
+    >>> S(If, True, S(Print,'yes'), S(Print,'no')).s_eval({})
     yes
-    >>> S(If, False, S(Print,'yes'), S(Print,'no')).s_eval()
+    >>> S(If, False, S(Print,'yes'), S(Print,'no')).s_eval({})
     no
 
     For comparison, note that a non-macro function gets any nested
     S objects pre-evaluated.
     >>> S(lambda b,t,e=None: t if b else e,
-    ...   True, S(Print,'yes'), S(Print,'no')).s_eval()
+    ...   True, S(Print,'yes'), S(Print,'no')).s_eval({})
     yes
     no
     """
@@ -122,12 +122,15 @@ class SExpression(object):
         self.args = args
         self.kwargs = kwargs
 
-    def s_eval(self, scope=Empty):
+    def s_eval(self, scope):
         func = s_eval_in_scope(self.func, scope)
         if hasattr(func, '_macro_'):
             return s_eval_in_scope(func(*self.args, **self.kwargs), scope)
         return func(
-            *(s_eval_in_scope(a, scope) for a in self.args),
+            # generators CAN Unpack with *,
+            # but they mask TypeError messages due to Python bug!
+            # so we make it a tuple for better errors.
+            *tuple(s_eval_in_scope(a, scope) for a in self.args),
             **{k: s_eval_in_scope(v, scope) for k, v in self.kwargs.items()})
 
     def __repr__(self):
@@ -179,7 +182,7 @@ class Symbol(UserString, str):
     >>> with_symbol  # S.spam is still a symbol
     S(<built-in function print>,
       S.spam)
-    >>> no_symbol.s_eval()
+    >>> no_symbol.s_eval({})
     1
 
     Symbols require a containing scope
@@ -191,7 +194,7 @@ class Symbol(UserString, str):
     >>> no_symbol.s_eval(globals())
     1
 
-    globals()['spam'] == 8
+    8 == globals()['spam']
     >>> with_symbol.s_eval(globals())
     8
 
@@ -207,20 +210,21 @@ class Symbol(UserString, str):
 
     def __repr__(self):
         """
-        >>> S.foo
-        S.foo
+        >>> S.x
+        S.x
+        >>> S._foo
+        S._foo
         >>> S.fo + S.r
         Symbol('for')
         >>> Symbol('1') + S.foo
         Symbol('1foo')
         """
-        # or not self.isidentifier(): <- not in 2.7
-        if (iskeyword(self)
-            or not (self[0].isalpha()
-                    or self[0] == '_')
-            or not self[1:].replace('_', 'X').isalnum()):
-            return 'Symbol(%s)' % repr(self.data)
-        return 'S.' + self.data
+        # and self.isidentifier(): <- not in 2.7
+        if(not iskeyword(self)
+           and (self[0].isalpha() or self[0] == '_')
+           and (len(self)==1 or self[1:].replace('_', 'X').isalnum())):
+            return 'S.' + self.data
+        return 'Symbol(%s)' % repr(self.data)
 
     def s_eval(self, scope=Empty):
         """ looks up itself in scope """

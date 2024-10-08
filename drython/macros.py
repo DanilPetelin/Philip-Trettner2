@@ -33,11 +33,9 @@ class Scope(Mapping):
     def __iter__(self):
         return iter(self.vars)
 
-    def __init__(self, parent, local_variables=None, kwvals=None):
+    def __init__(self, parent, local_variables=None):
         self.parent = parent
         self.vars = local_variables or {}
-        if kwvals:
-            self.vars.update(kwvals)
         self.nonlocals = set()
 
     def __getitem__(self, name):
@@ -66,6 +64,37 @@ class Scope(Mapping):
     def Nonlocal(self, *names):
         self.nonlocals |= set(names)
 
+class SLambda:
+    def __init__(self, args, varargs, varkw, defaults, kwonlyargs, kwonlydefaults, body):
+        kwargs = frozenset(args) | kwonlyargs
+        def _s_eval_helper(scope):
+            b_defaults = reversed(s_eval_in_scope(defaults, scope))
+            b_kwonlydefaults = s_eval_in_scope(kwonlydefaults, scope)
+
+            def bind(b_args, b_kwargs):
+                bindings = {}
+                for d in (zip(reversed(args), b_defaults),
+                          zip(args, b_args),
+                          b_kwonlydefaults,
+                          ((k, v) for k, v in b_kwargs.items()
+                           if k in kwargs)):
+                    bindings.update(d)
+                if varargs:
+                    bindings[varargs] = b_args[len(args):]
+                if varkw:
+                    bindings[varkw] = {k: v for k, v in b_kwargs.items()
+                                       if k not in kwargs}
+                return bindings
+
+            def lx(*args, **kwargs):
+                return body.s_eval(Scope(scope,bind(args, kwargs)))
+
+            return lx
+
+        self._s_eval_helper = _s_eval_helper
+
+    def s_eval(self, scope):
+        return self._s_eval_helper(scope)
 
 # class SLambda(object):
 #     def __init__(self, symbols, body, varg, kwonlys, kwvarg, defaults):
@@ -95,6 +124,26 @@ class Scope(Mapping):
 #
 #         return lx
 
+# class SLambdaN(object):
+#     def __init__(self, args, varargs, defaults, body):
+#         self.args = args
+#         self.varargs = varargs
+#         self.defaults = defaults
+#         self.body = body
+#
+#     def s_evalS(self, scope):
+#         sargs = (s_eval_in_scope(a, scope) for a in self.args)
+#         varargs = s_eval_in_scope(self.varargs, scope)
+#         defaults = (s_eval_in_scope(d, scope) for d in self.defaults)
+#         def ln(*args):
+#             # reversed since the start of the list might not have defaults.
+#             bindings = dict(zip(reversed(sargs),reversed(defaults)))
+#             # update with positional arguments
+#             bindings.update(dict(zip(sargs,args)))
+#             # the remainder after binding positionals goes in varargs
+#             bindings[varargs] = args[len(sargs):]
+#             return self.body.s_eval(Scope(scope, bindings))
+#         return ln
 
 class SLambda1(object):
     def __init__(self, symbol, body):
@@ -189,12 +238,12 @@ def thunk(body):
 def If(boolean, then, Else=None):
     """
     >>> from operator import add, sub
-    >>> S(If,S(sub,1,1),S(Print,'then')).s_eval()
-    >>> S(If,S(add,1,1),S(Print,'then')).s_eval()
+    >>> S(If,S(sub,1,1),S(Print,'then')).s_eval({})
+    >>> S(If,S(add,1,1),S(Print,'then')).s_eval({})
     then
-    >>> S(If,S(add,1,1),S(Print,'then'),S(Print,'else')).s_eval()
+    >>> S(If,S(add,1,1),S(Print,'then'),S(Print,'else')).s_eval({})
     then
-    >>> S(If,S(sub,1,1),S(Print,'then'),S(Print,'else')).s_eval()
+    >>> S(If,S(sub,1,1),S(Print,'then'),S(Print,'else')).s_eval({})
     else
     """
     return S(s_eval,
@@ -280,11 +329,11 @@ def dot(obj, *names):
     attribute and index/key access macro
     >>> 'quux'[-1]
     'x'
-    >>> S(dot,'quux',[-1]).s_eval()
+    >>> S(dot,'quux',[-1]).s_eval({})
     'x'
     >>> ['foo','bar','baz'][1][-1]
     'r'
-    >>> S(dot,['foo','bar','baz'],[1],[-1]).s_eval()
+    >>> S(dot,['foo','bar','baz'],[1],[-1]).s_eval({})
     'r'
     >>> str.join.__name__
     'join'
