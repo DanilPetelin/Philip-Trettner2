@@ -129,6 +129,7 @@ del _private
 #                 yield i
 #             for k in self.kwargs:
 #                 yield k
+#         return it
 #
 #     def __len__(self):
 #         return len(self.args) + len(self.kwargs)

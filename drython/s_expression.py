@@ -28,23 +28,21 @@ S-expression: `S(Print,'foo')`.
 
 from __future__ import absolute_import, division
 from drython.statement import Print
-
+from keyword import iskeyword
+from operator import add
+from collections import Mapping
 import sys
-
 if sys.version_info[0] == 2:
     # noinspection PyUnresolvedReferences,PyCompatibility
     from UserString import UserString
 else:
     from collections import UserString
 
-from keyword import iskeyword
-from operator import add
-
-from drython.core import Empty
+from drython.core import Empty, entuple
 from drython.statement import Var, Raise
 
 
-class SExpression(object):
+class SExpression(Mapping):
     """
     S-expressions are executable data structures for metaprogramming.
 
@@ -61,22 +59,22 @@ class SExpression(object):
       4)
     >>> spam.s_eval({})  # same as >>> add(20,4)
     24
-    >>> spam.s_eval({})  # works more than once
+    >>> spam()  # S-expressions are also callable
     24
 
     represents >>> add(mul(4, 10), 2)  # 4*10 + 2
     >>> spam = S(add,S(mul,4,10),2)
-    >>> spam.s_eval({})
+    >>> spam()
     42
 
     Even the function argument can be a nested S-expression
-    >>> S(S(lambda a,b: a and b, add,mul),2,3).s_eval({})
+    >>> S(S(lambda a,b: a and b, add,mul),2,3)()
     6
-    >>> S(S(lambda a,b: a or b, add,mul),2,3).s_eval({})
+    >>> S(S(lambda a,b: a or b, add,mul),2,3)()
     5
 
     Keywords also work
-    >>> S(Print,1,2,3,sep='::').s_eval({})
+    >>> S(Print,1,2,3,sep='::')()
     1::2::3
 
     Important: SExpression will not peek into other data structures to evaluate
@@ -85,13 +83,13 @@ class SExpression(object):
 
     This doesn't print 'test'.
     >>> identity = lambda x: x
-    >>> S(identity,[S(Print,'test')]).s_eval({})
+    >>> S(identity,[S(Print,'test')])()
     [S(<built-in function print>,
       'test')]
 
     This does, since it uses another S-expression to make the list.
     >>> from drython.core import enlist
-    >>> S(identity,S(enlist,S(Print,'test'))).s_eval({})
+    >>> S(identity,S(enlist,S(Print,'test')))()
     test
     [None]
 
@@ -104,18 +102,44 @@ class SExpression(object):
     These are given any nested S objects unevaluated, and return a
     new object to be evaluated.
     >>> from drython.macros import If
-    >>> S(If, True, S(Print,'yes'), S(Print,'no')).s_eval({})
+    >>> S(If, True, S(Print,'yes'), S(Print,'no'))()
     yes
-    >>> S(If, False, S(Print,'yes'), S(Print,'no')).s_eval({})
+    >>> S(If, False, S(Print,'yes'), S(Print,'no'))()
     no
 
     For comparison, note that a non-macro function gets any nested
     S objects pre-evaluated.
     >>> S(lambda b,t,e=None: t if b else e,
-    ...   True, S(Print,'yes'), S(Print,'no')).s_eval({})
+    ...   True, S(Print,'yes'), S(Print,'no'))()
     yes
     no
     """
+
+    def __getitem__(self, key):
+        try:
+            return self.kwargs[key]
+        except KeyError:
+            return entuple(self.func, *self.args)[key]
+
+    def __iter__(self):
+        """
+        >>> foo = S(Print,'a','b','c',sep='::')
+        >>> foo()
+        a::b::c
+        >>> tuple(foo)
+        (0, 1, 2, 3, 'sep')
+        >>> tuple(foo.items())
+        ((0, <built-in function print>), (1, 'a'), (2, 'b'), (3, 'c'), ('sep', '::'))
+        """
+        def it():
+            for i in range(len(self.args)+1):
+                yield i
+            for k in self.kwargs:
+                yield k
+        return it()
+
+    def __len__(self):
+        return 1 + len(self.args) + len(self.kwargs)
 
     def __init__(self, func, *args, **kwargs):
         self.func = func
@@ -142,6 +166,27 @@ class SExpression(object):
             if self.args else '',
             ',{0}**{1}'.format(indent, repr(self.kwargs).replace('\n', indent))
             if self.kwargs else '')
+
+    def __call__(self, **kwargs):
+        return self.s_eval(kwargs)
+
+    class Unquoted(object):
+        def __init__(self, sexp):
+            self.sexp = sexp
+        def __repr__(self):
+            return '-' + repr(self.sexp).replace('\n','\n ')
+
+    def __neg__(self):
+        return self.Unquoted(self)
+
+    class Quoted(object):
+        def __init__(self, sexp):
+            self.sexp = sexp
+        def __repr__(self):
+            return '+' + repr(self.sexp).replace('\n','\n ')
+
+    def __pos__(self):
+        return self.Quoted(self)
 
 
 def s_eval_in_scope(element, scope):
@@ -182,7 +227,7 @@ class Symbol(UserString, str):
     >>> with_symbol  # S.spam is still a symbol
     S(<built-in function print>,
       S.spam)
-    >>> no_symbol.s_eval({})
+    >>> no_symbol()
     1
 
     Symbols require a containing scope
@@ -200,6 +245,8 @@ class Symbol(UserString, str):
 
     value depends on scope
     >>> with_symbol.s_eval(dict(spam=42))
+    42
+    >>> with_symbol(spam=42)  # same as above
     42
 
     Macros get Symbols unevaluated. Unevaluated Symbols work like strings.
