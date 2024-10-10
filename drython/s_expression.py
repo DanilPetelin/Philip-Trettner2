@@ -170,11 +170,19 @@ class SExpression(Mapping):
     def __call__(self, **kwargs):
         return self.s_eval(kwargs)
 
+    def s_unquote(self, scope):
+        return S(
+            s_unquote_in_scope(self.func, scope),
+            *tuple(s_unquote_in_scope(a, scope) for a in self.args),
+            **{k: s_unquote_in_scope(v, scope) for k, v in self.kwargs.items()})
+
     class Unquoted(object):
         def __init__(self, sexp):
             self.sexp = sexp
         def __repr__(self):
             return '-' + repr(self.sexp).replace('\n','\n ')
+        def s_unquote(self, scope):
+            return self.sexp.s_eval(scope)
 
     def __neg__(self):
         return self.Unquoted(self)
@@ -184,10 +192,19 @@ class SExpression(Mapping):
             self.sexp = sexp
         def __repr__(self):
             return '+' + repr(self.sexp).replace('\n','\n ')
+        def s_eval(self, scope):
+            return S(
+                s_unquote_in_scope(self.sexp.func, scope),
+                *tuple(s_unquote_in_scope(a, scope) for a in self.sexp.args),
+                **{k: s_unquote_in_scope(v, scope) for k, v in self.sexp.kwargs.items()})
 
     def __pos__(self):
         return self.Quoted(self)
 
+def s_unquote_in_scope(element, scope):
+    if hasattr(element, 's_unquote'):
+        return element.s_unquote(scope)
+    return element
 
 def s_eval_in_scope(element, scope):
     """
@@ -285,6 +302,29 @@ class Symbol(UserString, str):
             #     Raise(SymbolError(
             #         'Symbol %s is not bound in the given scope' % repr(self)
             #     ), From=ex)
+
+    class Quoted(object):
+        def __init__(self, symb):
+            self.symb = symb
+        def __repr__(self):
+            return '+' + repr(self.symb)
+        def s_eval(self, scope):
+            return self.symb
+
+    def __pos__(self):
+        return self.Quoted(self)
+
+    class Unquoted(object):
+        def __init__(self, symb):
+            self.symb = symb
+        def __repr__(self):
+            return '-' + repr(self.symb)
+        def s_unquote(self, scope):
+            return self.symb.s_eval(scope)
+
+    def __neg__(self):
+        return self.Unquoted(self)
+
 
 
 def _private():
