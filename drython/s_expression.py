@@ -27,11 +27,12 @@ S-expression: `S(Print,'foo')`.
 # s_expression may safely depend on .core and .statement
 
 from __future__ import absolute_import, division
-from drython.statement import Print
+from itertools import chain
 from keyword import iskeyword
 from operator import add
 from collections import Mapping
 import sys
+
 if sys.version_info[0] == 2:
     # noinspection PyUnresolvedReferences,PyCompatibility
     from UserString import UserString
@@ -39,8 +40,91 @@ else:
     from collections import UserString
 
 from drython.core import Empty, entuple
-from drython.statement import Var, Raise
+from drython.statement import Var, Raise, Print
 
+
+class Quote(object):
+    def __init__(self, item):
+        self.item = item
+
+    def __repr__(self):
+        return '+' + repr(self.item).replace('\n', '\n ')
+
+    def s_eval(self, scope):
+        return self.item
+
+    def __invert__(self):
+        return Unquote(self)
+
+    def __pos__(self):
+        return Quote(self)
+
+
+class Unquote(object):
+    def __init__(self, item):
+        self.item = item
+
+    def __repr__(self):
+        return '~' + repr(self.item).replace('\n', '\n ')
+
+    def s_unquote(self, scope):
+        return self.item.s_eval(scope)
+
+    def s_eval(self, scope):
+        raise TypeError("unquote outside of quasiquote")
+
+    def __invert__(self):
+        return Unquote(self)
+
+    def __pos__(self):
+        return Quote(self)
+
+
+class Splice(object):
+    def __init__(self, iterable):
+        self.iterable = iterable
+
+    def __repr__(self):
+        return 'Splice(%s)' % repr(self.iterable)
+
+    def s_unquote_splice(self, scope):
+        return tuple(s_unquote_in_scope(e, scope) for e in self.iterable)
+
+    def __invert__(self):
+        return Unquote(self)
+
+    def __pos__(self):
+        return Quote(self)
+
+
+def s_unquote_in_scope(element, scope):
+    if hasattr(element, 's_unquote'):
+        return element.s_unquote(scope)
+    return element
+
+
+def s_unquote_splice_in_scope(element, scope):
+    if hasattr(element, 's_unquote_splice'):
+        return element.s_unquote_splice()
+    return s_unquote_in_scope(element, scope),
+
+
+def s_eval_in_scope(element, scope):
+    """
+    Evaluates the element in the given scope using its s_eval method, if present.
+    Otherwise returns the element unevaluated.
+
+    >>> from operator import sub
+    >>> s_eval_in_scope(S(sub,S.x,S.y), dict(x=10,y=3))
+    7
+
+    integers are not s-evaluable, so evaluate to themselves.
+    >>> s_eval_in_scope(10-7, globals())
+    3
+    """
+    if hasattr(element, 's_eval'):
+        return element.s_eval(scope)
+    return element
 
 class SExpression(Mapping):
     """
@@ -131,12 +215,7 @@ class SExpression(Mapping):
         >>> tuple(foo.items())
         ((0, <built-in function print>), (1, 'a'), (2, 'b'), (3, 'c'), ('sep', '::'))
         """
-        def it():
-            for i in range(len(self.args)+1):
-                yield i
-            for k in self.kwargs:
-                yield k
-        return it()
+        return chain(range(len(self.args) + 1), self.kwargs)
 
     def __len__(self):
         return 1 + len(self.args) + len(self.kwargs)
@@ -173,71 +252,33 @@ class SExpression(Mapping):
     def s_unquote(self, scope):
         return S(
             s_unquote_in_scope(self.func, scope),
-            *tuple(s_unquote_in_scope(a, scope) for a in self.args),
+            *tuple(chain(s_unquote_splice_in_scope(a, scope) for a in self.args)),
             **{k: s_unquote_in_scope(v, scope) for k, v in self.kwargs.items()})
 
-    def __neg__(self):
-        return Unquoted(self)
+    def __invert__(self):
+        return Unquote(self)
 
-    class Quoted(Quoted):
+    class Quote(Quote):
         def s_eval(self, scope):
-            return S(
-                s_unquote_in_scope(self.item.func, scope),
-                *tuple(s_unquote_in_scope(a, scope) for a in self.item.args),
-                **{k: s_unquote_in_scope(v, scope) for k, v in self.item.kwargs.items()})
+            return self.item.s_unquote(scope)
 
     def __pos__(self):
-        return self.Quoted(self)
-
-#TODO: test double quoted
-#TODO: unquote/splice ~
-
-class Quoted(object):
-    def __init__(self, item):
-        self.item = item
-    def __repr__(self):
-        return '+' + repr(self.item).replace('\n','\n ')
-    def s_eval(self, scope):
-        return self.item
-    def __neg__(self):
-        return Unquoted(self)
-    def __pos__(self):
-        return Quoted(self)
-
-class Unquoted(object):
-    def __init__(self, item):
-        self.item = item
-    def __repr__(self):
-        return '-' + repr(self.item).replace('\n','\n ')
-    def s_unquote(self, scope):
-        return self.item.s_eval(scope)
-    def __neg__(self):
-        return Unquoted(self)
-    def __pos__(self):
-        return Quoted(self)
+        return self.Quote(self)
 
 
-def s_unquote_in_scope(element, scope):
-    if hasattr(element, 's_unquote'):
-        return element.s_unquote(scope)
-    return element
-
-def s_eval_in_scope(element, scope):
-    """
-    Evaluates the element in the given scope using its s_eval method, if present.
-    Otherwise returns the element unevaluated.
-
-    >>> from operator import sub
-    >>> s_eval_in_scope(S(sub,S.x,S.y), dict(x=10,y=3))
-    7
-
-    integers are not s-evaluable, so evaluate to themselves.
-    >>> s_eval_in_scope(10-7, globals())
-    3
-    """
-    if hasattr(element, 's_eval'):
-        return element.s_eval(scope)
-    return element
+# TODO: test double quoted
+# TODO: unquote/splice ~
+# the quasiquote expression
+#
+# `(foo ,bar ,@quux)
+#
+# stands for
+#
+# (append (list 'foo) (list bar) quux)
+#
+# which produces the following when evaluated:
+#
+# '(foo 2 3 4)
 
 
 class SymbolError(NameError):
@@ -300,9 +341,9 @@ class Symbol(UserString, str):
         Symbol('1foo')
         """
         # and self.isidentifier(): <- not in 2.7
-        if(not iskeyword(self)
-           and (self[0].isalpha() or self[0] == '_')
-           and (len(self)==1 or self[1:].replace('_', 'X').isalnum())):
+        if (not iskeyword(self)
+            and (self[0].isalpha() or self[0] == '_')
+            and (len(self) == 1 or self[1:].replace('_', 'X').isalnum())):
             return 'S.' + self.data
         return 'Symbol(%s)' % repr(self.data)
 
@@ -314,17 +355,12 @@ class Symbol(UserString, str):
             Raise(SymbolError(
                 'Symbol %s is not bound in the given scope' % repr(self)
             ), From=None)
-            # except TypeError as ex:
-            #     Raise(SymbolError(
-            #         'Symbol %s is not bound in the given scope' % repr(self)
-            #     ), From=ex)
 
     def __pos__(self):
-        return Quoted(self)
+        return Quote(self)
 
-    def __neg__(self):
-        return Unquoted(self)
-
+    def __invert__(self):
+        return Unquote(self)
 
 
 def _private():
