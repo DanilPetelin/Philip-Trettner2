@@ -48,7 +48,7 @@ class Quote(object):
         self.item = item
 
     def __repr__(self):
-        return '+' + repr(self.item).replace('\n', '\n ')
+        return 'Quote(%s)' % repr(self.item)
 
     def s_eval(self, scope):
         return self.item
@@ -71,7 +71,7 @@ class Unquote(object):
         return self.item.s_eval(scope)
 
     def s_eval(self, scope):
-        raise TypeError("unquote outside of quasiquote")
+        raise TypeError("Unquote outside of Quasiquote")
 
     def __invert__(self):
         return Unquote(self)
@@ -89,6 +89,9 @@ class Splice(object):
 
     def s_unquote_splice(self, scope):
         return tuple(s_unquote_in_scope(e, scope) for e in self.iterable)
+
+    def s_eval(self, scope):
+        raise TypeError("Splice outside of Quasiquote")
 
     def __invert__(self):
         return Unquote(self)
@@ -125,6 +128,7 @@ def s_eval_in_scope(element, scope):
     if hasattr(element, 's_eval'):
         return element.s_eval(scope)
     return element
+
 
 class SExpression(Mapping):
     """
@@ -258,12 +262,15 @@ class SExpression(Mapping):
     def __invert__(self):
         return Unquote(self)
 
-    class Quote(Quote):
+    class Quasiquote(Quote):
         def s_eval(self, scope):
             return self.item.s_unquote(scope)
 
+        def __repr__(self):
+            return '+' + repr(self.item).replace('\n', '\n ')
+
     def __pos__(self):
-        return self.Quote(self)
+        return self.Quasiquote(self)
 
 
 # TODO: test double quoted
@@ -356,8 +363,12 @@ class Symbol(UserString, str):
                 'Symbol %s is not bound in the given scope' % repr(self)
             ), From=None)
 
+    class SymbolQuote(Quote):
+        def __repr__(self):
+            return '+' + repr(self.item)
+
     def __pos__(self):
-        return Quote(self)
+        return self.SymbolQuote(self)
 
     def __invert__(self):
         return Unquote(self)
