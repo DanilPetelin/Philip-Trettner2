@@ -15,6 +15,7 @@
 # TODO: docstring macros.py
 from __future__ import absolute_import, division
 from functools import wraps
+from core import SEvaluable
 from drython.statement import Print
 
 from collections import Mapping
@@ -31,14 +32,14 @@ def s_eval(body):
     return SEval(body)
 
 
-class SEval(object):
+class SEval(SEvaluable):
     def __init__(self, body):
         self.body = body
 
     def s_eval(self, scope):
-        if hasattr(self.body, 's_eval'):
+        if isinstance(self.body, SEvaluable):
             res = self.body.s_eval(scope)
-            if hasattr(res, 's_eval'):
+            if isinstance(res, SEvaluable):
                 return res.s_eval(scope)
             return res
         return self.body
@@ -83,7 +84,7 @@ class Scope(Mapping):
         self.nonlocals |= set(names)
 
 
-class SSetQ(object):
+class SSetQ(SEvaluable):
     def __init__(self, pairs):
         self.pairs = partition(pairs)
 
@@ -109,7 +110,7 @@ def setq(*pairs):
     return SSetQ(pairs)
 
 
-class SLambda(object):
+class SLambda(SEvaluable):
     def __init__(self, body, required=(), optional=(), star=None, stars=None):
         def _s_eval_helper(scope):
             assert len(optional) % 2 == 0
@@ -214,7 +215,7 @@ def let1(symbol, value, *body):
 #                                      S(symbol_name S.s), ).u)).q)).u)).q)
 # , star=S.args, stars=S.kwargs).s_eval(globals())
 
-class SLambda0(object):
+class SLambda0(SEvaluable):
     def __init__(self, body):
         self.body = body
 
@@ -232,7 +233,7 @@ def L0(*body):
     return SLambda0(S(progn, *body))
 
 
-class SLambda1(object):
+class SLambda1(SEvaluable):
     def __init__(self, symbol, body):
         self.body = body
         self.symbol = symbol
@@ -251,7 +252,7 @@ def L1(symbol, *body):
     return SLambda1(symbol, S(progn, *body))
 
 
-class SLambda2(object):
+class SLambda2(SEvaluable):
     def __init__(self, x, y, body):
         self.body = body
         self.x = x
@@ -271,7 +272,7 @@ def L2(x, y, *body):
     return SLambda2(x, y, S(progn, *body))
 
 
-class SLambdaA(object):
+class SLambdaA(SEvaluable):
     def __init__(self, args, body):
         self.body = body
         self.args = args
@@ -309,7 +310,7 @@ def La(args, *body):
 
 
 
-class SNonlocal(object):
+class SNonlocal(SEvaluable):
     def __init__(self, symbols):
         self.symbols = symbols
 
