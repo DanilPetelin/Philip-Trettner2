@@ -21,6 +21,7 @@ Basic utilities for use with the other modules.
 
 
 from __future__ import absolute_import, division, print_function
+from abc import ABCMeta, abstractmethod
 
 from collections import Mapping
 import sys
@@ -109,8 +110,10 @@ def _private():
     __test__[EmptyType.__name__] = EmptyType.__doc__
 
     res = EmptyType()
+
     def __init__(self):
         raise TypeError("cannot create 'EmptyType' instances")
+
     EmptyType.__init__ = __init__
     return res
 
@@ -267,6 +270,8 @@ class Namespace(object):
 
 
 _sentinel = object()
+
+
 def partition(iterable, n=2, step=None, fillvalue=_sentinel):
     """
     Chunks iterable into tuples of length n. (default pairs)
@@ -392,5 +397,18 @@ def delitem(obj, index):
 #     # TODO: doctest apply
 #     return (lambda a=(), kw=Empty:
 #             functools.partial(func, *args, **kwargs)(*a, **kw))
+
+if sys.version_info[0] >= 3:
+    exec("class Abstract(metaclass=ABCMeta):pass")
+else:
+    class Abstract(object):
+        __metaclass__ = ABCMeta
+
+
+class SEvaluable(Abstract):
+    @abstractmethod
+    def s_eval(self, scope):
+        pass
+
 
 __all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]

@@ -32,6 +32,7 @@ from keyword import iskeyword
 from operator import add
 from collections import Mapping
 import sys
+from core import SEvaluable
 
 if sys.version_info[0] == 2:
     # noinspection PyUnresolvedReferences,PyCompatibility
@@ -43,7 +44,7 @@ from drython.core import Empty, entuple
 from drython.statement import Var, Raise, Print
 
 
-class Quote(object):
+class Quote(SEvaluable):
     def __init__(self, item):
         self.item = item
 
@@ -60,7 +61,7 @@ class Quote(object):
         return Quote(self)
 
 
-class Unquote(object):
+class Unquote(SEvaluable):
     def __init__(self, item):
         self.item = item
 
@@ -80,7 +81,7 @@ class Unquote(object):
         return Quote(self)
 
 
-class Splice(object):
+class Splice(SEvaluable):
     def __init__(self, iterable):
         self.iterable = iterable
 
@@ -125,12 +126,12 @@ def s_eval_in_scope(element, scope):
     >>> s_eval_in_scope(10-7, globals())
     3
     """
-    if hasattr(element, 's_eval'):
+    if isinstance(element, SEvaluable):
         return element.s_eval(scope)
     return element
 
 
-class SExpression(Mapping):
+class SExpression(Mapping, SEvaluable):
     """
     S-expressions are executable data structures for metaprogramming.
 
@@ -292,7 +293,7 @@ class SymbolError(NameError):
     pass
 
 
-class Symbol(UserString, str):
+class Symbol(UserString, str, SEvaluable):
     """
     Symbols for S-expressions.
 
