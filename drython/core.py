@@ -25,7 +25,7 @@ from abc import ABCMeta, abstractmethod
 
 from collections import Mapping
 import sys
-from itertools import islice
+from itertools import islice, chain
 
 if sys.version_info[0] == 2:
     # noinspection PyUnresolvedReferences
@@ -303,6 +303,14 @@ def partition(iterable, n=2, step=None, fillvalue=_sentinel):
     else:
         return zip_longest(*slices, fillvalue=fillvalue)
 
+def interleave(*iterables):
+    """
+    >>> ''.join(interleave('ABC','xyz'))
+    'AxByCz'
+    >>> ' '.join(interleave('ABC','xyz','123'))
+    'A x 1 B y 2 C z 3'
+    """
+    return chain.from_iterable(zip(*iterables))
 
 def identity(x):
     """
