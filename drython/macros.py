@@ -14,16 +14,16 @@
 
 # TODO: docstring macros.py
 from __future__ import absolute_import, division
+from collections import MutableMapping
 from functools import wraps
-from core import SEvaluable
+from itertools import chain
+
 from drython.statement import Print
-
-from collections import Mapping
-
-from drython.core import partition, identity, Empty, entuple
-from drython.s_expression import S, macro, s_eval_in_scope
+from drython.core import partition, identity, entuple, SEvaluable, interleave, apply
+from drython.s_expression import S, macro, s_eval_in_scope, flatten_sexpr, gensym, Symbol, Quote
 from drython.statement import Elif, progn, Raise
 
+__test__ = {}
 
 # macros.py depends on core.py, s_expression.py, and statement.py
 # macros.py does not currently require stack.py
@@ -37,24 +37,26 @@ class SEval(SEvaluable):
         self.body = body
 
     def s_eval(self, scope):
-        if isinstance(self.body, SEvaluable):
+        if hasattr(self.body, '_s_evaluable_') and isinstance(self.body, SEvaluable):
             res = self.body.s_eval(scope)
-            if isinstance(res, SEvaluable):
+            if hasattr(self.body, '_s_evaluable_') and isinstance(res, SEvaluable):
                 return res.s_eval(scope)
             return res
         return self.body
 
+class ScopeError(NameError, KeyError):
+    pass
 
-class Scope(Mapping):
+class Scope(MutableMapping):
     def __len__(self):
         return len(self.vars)
 
     def __iter__(self):
         return iter(self.vars)
 
-    def __init__(self, parent, local_variables=None):
+    def __init__(self, parent, local=None):
         self.parent = parent
-        self.vars = local_variables or {}
+        self.vars = local or {}
         self.nonlocals = set()
 
     def __getitem__(self, name):
@@ -63,25 +65,43 @@ class Scope(Mapping):
         except KeyError:
             try:
                 return self.parent[name]
-            except TypeError as err:
-                Raise(NameError('name %s is not defined in scope' % repr(name)), From=err)
-            except KeyError as err:
-                Raise(NameError('name %s is not defined in scope' % repr(name)), From=err)
+            except KeyError as ke:
+                Raise(ScopeError('name %s not found in Scope' % repr(name)), From=ke)
 
     def __setitem__(self, name, val):
         if name in self.nonlocals:
             try:
                 self.parent[name] = val
-            except KeyError as err:
-                Raise(NameError('nonlocal %s not found' % repr(name)), From=err)
-            except TypeError as err:
-                Raise(NameError('nonlocal %s not found' % repr(name)), From=err)
+            except KeyError as ke:
+                Raise(ScopeError('nonlocal %s not found' % repr(name)), From=ke)
         else:
             self.vars[name] = val
+
+    def __delitem__(self, name):
+        if name in self.nonlocals:
+            try:
+                del self.parent[name]
+            except KeyError as ke:
+                Raise(ScopeError('nonlocal %s not found' % repr(name)), From=ke)
+
+    def __repr__(self):
+        return ('Scope(parent={0},local={1})'.format(self.parent,self.vars)
+               + ('.Nonlocal({0})'.format(self.nonlocals) if self.nonlocals else ''))
 
     # noinspection PyPep8Naming
     def Nonlocal(self, *names):
         self.nonlocals |= set(names)
+        return self
+
+
+class ScopeGetter(SEvaluable):
+    def s_eval(self, scope):
+        return scope
+
+
+@macro
+def scope():
+    return ScopeGetter()
 
 
 class SSetQ(SEvaluable):
@@ -121,11 +141,15 @@ class SLambda(SEvaluable):
             defaults = S(entuple, *defaults).s_eval(scope)
 
             _sentinel = object()
-            func = eval('''lambda {required}{optional}{star}{stars}: locals()'''.format(
-                required=''.join(map('{0}, '.format, required)),
-                optional=''.join(map('{0}=_sentinel, '.format, keys)),
-                star='*%s,' % star if star else '',
-                stars='**' + stars if stars else ''), dict(_sentinel=_sentinel))
+            func = eval(
+                'lambda {0}:locals()'.format(
+                    ','.join(
+                        ((','.join(required),) if required else ())
+                        + ((','.join(
+                            map('{0}=_'.format, keys)),) if keys else ())
+                        + (('*%s' % star,) if star else ())
+                        + (('**' + stars,) if stars else ()))),
+                dict(_=_sentinel))
 
             @wraps(func)
             def Lambda(*args, **kwargs):
@@ -144,15 +168,14 @@ class SLambda(SEvaluable):
 
 
 @macro
-def fn(required, optional, *body, **stargs):
+def fn(required, optional, star, stars, *body):
     """
     an anonymous function.
 
-    >>> foo = S(fn,[S.a, S.b], [S.c, 'c',  S.d, 'd'],
-    ...         S(Print,S.a,S.b,S.c,S.d),
-    ...         S(Print,S.args),
-    ...         S(Print,S.kwargs),
-    ...       star=S.args, stars=S.kwargs)()
+    >>> foo = S(fn, [S.a, S.b], [S.c, 'c',  S.d, 'd'], S.args, S.kwargs,
+    ...         S(Print, S.a, S.b, S.c, S.d),
+    ...         S(Print, S.args),
+    ...         S(Print, S.kwargs),)()
     >>> foo(1, c=2, b=3, q=4)
     1 3 2 d
     ()
@@ -162,35 +185,41 @@ def fn(required, optional, *body, **stargs):
     (5, 6)
     {'q': 7}
     """
-    return SLambda(body, required, optional, **stargs)
+    return SLambda(body, required, optional, star, stars)
 
 
 @macro
-def mac(required, optional, *body, **stargs):
-    return S(s_eval, S(macro, SLambda(body, required, optional, **stargs)))
+def mac(required, optional, star, stars, *body):
+    return S(s_eval, S(macro, SLambda(body, required, optional, star, stars)))
 
 
 @macro
-def defn(name, required, optional, *body, **stargs):
-    return S(setq, name, S(fn, required, optional, *body, **stargs))
+def defn(name, required, optional, star, stars, *body):
+    return S(progn,
+             S(setq, name, S(fn, required, optional, star, stars,
+                             *body)),
+             name,)
 
 
 @macro
-def defmacro(name, required, optional, *body, **stargs):
-    return S(setq, name, S(mac, required, optional, *body, **stargs))
+def defmac(name, required, optional, star, stars, *body):
+    return S(progn,
+             S(setq, name, S(mac, required, optional, star, stars,
+                             *body)),
+             name,)
 
 
 @macro
 def let_n(pairs, *body):
     """
-    lambda with default arguments that immediately calls itself.
+    lambda with given locals that immediately calls itself.
 
     >>> from operator import add
     >>> S(let_n, (S.a, 1, S.b, S(add, 1, 1)),
-    ...   S(Print, S.a, S.b))()
-    1 2
+    ...   S(entuple, S.a, S.b))()
+    (1, 2)
     """
-    return S(S(fn, (), pairs, S(progn, *body)))
+    return S(S(L0, S(setq, *pairs), S(progn, *body)))
 
 
 @macro
@@ -289,7 +318,6 @@ class SLambdaA(SEvaluable):
 def La(args, *body):
     return SLambdaA(args, S(progn, *body))
 
-
 # # symbols, vargs, kwonly, kwvargs
 # # noinspection PyPep8Naming
 # @macro
@@ -306,8 +334,51 @@ def La(args, *body):
 #     # TODO: test varg, kwonlys, kwvarg, defaults
 #     return SLambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
 
+@macro
+def quote(item):
+    return Quote(item)
 
+defmac_g_ = None
+S(defmac, S.defmac_g_, (S.name, S.required, S.optional, S.star, S.stars), (), S.body, None,
+  S(let1, S.syms, S(frozenset,
+                    S(filter,
+                      lambda x: isinstance(x, Symbol) and x.startswith('g_'),
+                      # flatten_sexpr is only for sexpr, not tuples, so make one w/apply.
+                      S(flatten_sexpr, S(apply, S, star=S.body)))),
+    +S(defmac, ~S.name, ~S.required, ~S.optional, ~S.star, ~S.stars,
+       S(apply,
+         let_n, ~S(chain.from_iterable, S(map,
+                            S(L1, S.x,
+                              S(entuple, S.x, S(gensym, S.x))),
+                            S.syms)),
+         star=~S.body), ))).s_eval(globals())
+defmac_g_.__doc__ = """\
+defines a macro with automatic gensyms for symbols starting with g_
+>>> from drython.s_expression import Quote
+>>> S(progn,
+...   S(defmac_g_, S.foo, [],[],None,None,
+...     +~S.g_spam,
+...     S(Raise,S(Exception,S(repr,S(scope))))),
+...   S(S.foo))()
+q
 
+...     +S(quote, ~S.g_foo)),
+...   S(Print,S(S.foo)))()
+q
+>>> from operator import gt
+>>> S(defmac_g_, S.nif, [S.expr, S.pos, S.zero, S.neg],[],None,None,
+...   +S(let1, ~S.g_res, ~S.expr,
+...      S(If, S(gt,~S.g_res,0), ~S.pos,
+...        S(If, S(gt,0,~S.g_res), ~S.neg,
+...          Else=~S.zero)))).s_eval(globals())
+>>> S(Print,S(S.nif,-1,1,0,-1)).s_eval(globals())
+"""
+# (defmacro/g! nif [expr pos zero neg]
+# `(let [[~g!res ~expr]]
+# (cond [(pos? ~g!res) ~pos]
+# [(zero? ~g!res) ~zero]
+# [(neg? ~g!res) ~neg])))
+# (print (nif (inc -1) 1 0 -1))
 
 
 class SNonlocal(SEvaluable):

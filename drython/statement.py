@@ -852,7 +852,7 @@ def progn(*body):
     >>> spam
     42
     """
-    return body[-1]
+    return body[-1] if body else None
 
 
 __all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]

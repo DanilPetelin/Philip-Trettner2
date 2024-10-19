@@ -322,6 +322,21 @@ def identity(x):
     return x
 
 
+def apply(func, *args, **stargs):
+    """
+    applies a function to arguments.
+    >>> apply(Print, 1, 2, 3)
+    1 2 3
+
+    also unpacks arguments with the special keywords star and stars
+
+    # like Print(1, 2, *(3, 4), **dict(sep='::'))
+    >>> apply(Print, 1, 2, star=(3, 4), stars=dict(sep='::'))
+    1::2::3::4
+    """
+    return func(*args+tuple(stargs.get('star',())), **stargs.get('stars', Empty))
+
+
 def assign_attr(obj, name, val, oper=None):
     """
     does an augmented assignment to the named attr of obj
@@ -414,6 +429,7 @@ else:
 
 
 class SEvaluable(Abstract):
+    _s_evaluable_ = None
     @abstractmethod
     def s_eval(self, scope):
         pass

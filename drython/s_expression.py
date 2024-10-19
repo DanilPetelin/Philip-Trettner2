@@ -32,7 +32,7 @@ from keyword import iskeyword
 from operator import add
 from collections import Mapping
 import sys
-from core import SEvaluable
+from drython.core import SEvaluable
 
 if sys.version_info[0] == 2:
     # noinspection PyUnresolvedReferences,PyCompatibility
@@ -81,24 +81,24 @@ class Unquote(SEvaluable):
         return Quote(self)
 
 
-class Splice(SEvaluable):
-    def __init__(self, iterable):
-        self.iterable = iterable
-
-    def __repr__(self):
-        return 'Splice(%s)' % repr(self.iterable)
-
-    def s_unquote_splice(self, scope):
-        return tuple(s_unquote_in_scope(e, scope) for e in self.iterable)
-
-    def s_eval(self, scope):
-        raise TypeError("Splice outside of Quasiquote")
-
-    def __invert__(self):
-        return Unquote(self)
-
-    def __pos__(self):
-        return Quote(self)
+# class Splice(SEvaluable):
+#     def __init__(self, iterable):
+#         self.iterable = iterable
+#
+#     def __repr__(self):
+#         return 'Splice(%s)' % repr(self.iterable)
+#
+#     def s_unquote_splice(self, scope):
+#         return tuple(s_unquote_in_scope(e, scope) for e in self.iterable)
+#
+#     def s_eval(self, scope):
+#         raise TypeError("Splice outside of Quasiquote")
+#
+#     def __invert__(self):
+#         return Unquote(self)
+#
+#     def __pos__(self):
+#         return Quote(self)
 
 
 def s_unquote_in_scope(element, scope):
@@ -107,10 +107,10 @@ def s_unquote_in_scope(element, scope):
     return element
 
 
-def s_unquote_splice_in_scope(element, scope):
-    if hasattr(element, 's_unquote_splice'):
-        return element.s_unquote_splice()
-    return s_unquote_in_scope(element, scope),
+# def s_unquote_splice_in_scope(element, scope):
+#     if hasattr(element, 's_unquote_splice'):
+#         return element.s_unquote_splice()
+#     return s_unquote_in_scope(element, scope),
 
 
 def s_eval_in_scope(element, scope):
@@ -126,9 +126,13 @@ def s_eval_in_scope(element, scope):
     >>> s_eval_in_scope(10-7, globals())
     3
     """
-    if isinstance(element, SEvaluable):
+    if hasattr(element, '_s_evaluable_') and isinstance(element, SEvaluable):
         return element.s_eval(scope)
     return element
+
+
+class SExpressionException(Exception):
+    pass
 
 
 class SExpression(Mapping, SEvaluable):
@@ -231,15 +235,18 @@ class SExpression(Mapping, SEvaluable):
         self.kwargs = kwargs
 
     def s_eval(self, scope):
-        func = s_eval_in_scope(self.func, scope)
-        if hasattr(func, '_macro_'):
-            return s_eval_in_scope(func(*self.args, **self.kwargs), scope)
-        return func(
-            # generators CAN Unpack with *,
-            # but they mask TypeError messages due to Python bug!
-            # so we make it a tuple for better errors.
-            *tuple(s_eval_in_scope(a, scope) for a in self.args),
-            **{k: s_eval_in_scope(v, scope) for k, v in self.kwargs.items()})
+        try:
+            func = s_eval_in_scope(self.func, scope)
+            if hasattr(func, '_macro_'):
+                return s_eval_in_scope(func(*self.args, **self.kwargs), scope)
+            return func(
+                # generators CAN Unpack with *,
+                # but they mask TypeError messages due to Python bug!
+                # so we make it a tuple for better errors.
+                *tuple(s_eval_in_scope(a, scope) for a in self.args),
+                **{k: s_eval_in_scope(v, scope) for k, v in self.kwargs.items()})
+        except BaseException as be:
+            Raise(be,From=SExpressionException('when evaluating\n'+repr(self)))
 
     def __repr__(self):
         indent = '\n  '
@@ -257,7 +264,8 @@ class SExpression(Mapping, SEvaluable):
     def s_unquote(self, scope):
         return S(
             s_unquote_in_scope(self.func, scope),
-            *tuple(chain(s_unquote_splice_in_scope(a, scope) for a in self.args)),
+            *tuple(s_unquote_in_scope(a, scope) for a in self.args),
+            # *tuple(chain(s_unquote_splice_in_scope(a, scope) for a in self.args)),
             **{k: s_unquote_in_scope(v, scope) for k, v in self.kwargs.items()})
 
     def __invert__(self):
@@ -440,6 +448,14 @@ def _private():
 S = _private()
 del _private
 
+def flatten_sexpr(sexpr):
+    res = []
+    for v in sexpr.values():
+        if isinstance(v, SExpression):
+            res.extend(flatten_sexpr(v))
+        else:
+            res.append(v)
+    return res
 
 # defines an interface used by SExpression, so belongs here, not in macros.py
 def macro(func):
