@@ -27,7 +27,7 @@ S-expression: `S(Print,'foo')`.
 # s_expression may safely depend on .core and .statement
 
 from __future__ import absolute_import, division
-from itertools import chain
+from itertools import chain, count
 from keyword import iskeyword
 from operator import add
 from collections import Mapping
@@ -43,8 +43,36 @@ else:
 from drython.core import Empty, entuple
 from drython.statement import Var, Raise, Print
 
+# defines an interface used by SExpression, so belongs here, not in macros.py
+def macro(func):
+    """
+    Marks the func as a macro.
+    In S-expressions, macros are given any S-expressions
+    unevaluated, then the result is evaluated.
+    """
+    func._macro_ = None
+    return func
 
-class Quote(SEvaluable):
+
+class SUnquotable(object):
+    def __invert__(self):
+        return S(unquote, self)
+
+    def __neg__(self):
+        return S(unquote_splice, self)
+
+
+class SQuotable(SUnquotable):
+    def __pos__(self):
+        return S(quote, self)
+
+
+@macro
+def quote(item):
+    return Quote(item)
+
+
+class Quote(SEvaluable, SQuotable):
     def __init__(self, item):
         self.item = item
 
@@ -54,63 +82,66 @@ class Quote(SEvaluable):
     def s_eval(self, scope):
         return self.item
 
-    def __invert__(self):
-        return Unquote(self)
 
-    def __pos__(self):
-        return Quote(self)
+@macro
+def unquote(item):
+    return Unquote(item)
 
 
-class Unquote(SEvaluable):
+class Unquote(SQuotable):
+    PREFIX = '~'
+
     def __init__(self, item):
         self.item = item
 
     def __repr__(self):
-        return '~' + repr(self.item).replace('\n', '\n ')
+        return self.PREFIX + repr(self.item).replace('\n', '\n ')
 
     def s_unquote(self, scope):
         return self.item.s_eval(scope)
 
-    def s_eval(self, scope):
-        raise TypeError("Unquote outside of Quasiquote")
-
-    def __invert__(self):
-        return Unquote(self)
-
-    def __pos__(self):
-        return Quote(self)
+        # def s_eval(self, scope):
+        #     raise TypeError("Unquote outside of Quasiquote")
 
 
-# class Splice(SEvaluable):
-#     def __init__(self, iterable):
-#         self.iterable = iterable
-#
-#     def __repr__(self):
-#         return 'Splice(%s)' % repr(self.iterable)
-#
-#     def s_unquote_splice(self, scope):
-#         return tuple(s_unquote_in_scope(e, scope) for e in self.iterable)
-#
-#     def s_eval(self, scope):
-#         raise TypeError("Splice outside of Quasiquote")
-#
-#     def __invert__(self):
-#         return Unquote(self)
-#
-#     def __pos__(self):
-#         return Quote(self)
+class UnquoteSplice(Unquote):
+    PREFIX = '-'
 
+
+@macro
+def unquote_splice(item):
+    return UnquoteSplice(item)
+
+def args_kwargs(data):
+    args = []
+    kwargs = Empty
+    try:
+        for i in count():
+           args.append(data[i])
+    except IndexError: pass
+    except KeyError: pass
+    if isinstance(data, Mapping):
+        kwargs = {k: v for k, v in data.items() if not isinstance(k, int)}
+    return args, kwargs
 
 def s_unquote_in_scope(element, scope):
+    if isinstance(element, SExpression):
+        if element.func == unquote:
+            element = element.s_eval(scope)
+        elif element.func == unquote_splice:
+            element = element.s_eval(scope).s_unquote(scope)
+            return args_kwargs(element)
     if hasattr(element, 's_unquote'):
-        return element.s_unquote(scope)
-    return element
+        return (element.s_unquote(scope),), Empty
+    return (element,), Empty
 
 
-# def s_unquote_splice_in_scope(element, scope):
-#     if hasattr(element, 's_unquote_splice'):
-#         return element.s_unquote_splice()
-#     return s_unquote_in_scope(element, scope),
+# def s_unquote_in_scope(element, scope):
+#     if isinstance(element, SExpression) and element.func == unquote:
+#         element = element.s_eval(scope)
+#     if hasattr(element, 's_unquote'):
+#         return element.s_unquote(scope)
+#     return element
 
 
 def s_eval_in_scope(element, scope):
@@ -135,7 +166,7 @@ class SExpressionException(Exception):
     pass
 
 
-class SExpression(Mapping, SEvaluable):
+class SExpression(Mapping, SEvaluable, SUnquotable):
     """
     S-expressions are executable data structures for metaprogramming.
 
@@ -246,9 +277,14 @@ class SExpression(Mapping, SEvaluable):
                 *tuple(s_eval_in_scope(a, scope) for a in self.args),
                 **{k: s_eval_in_scope(v, scope) for k, v in self.kwargs.items()})
         except BaseException as be:
-            Raise(be,From=SExpressionException('when evaluating\n'+repr(self)))
+            Raise(SExpressionException('when evaluating\n' + repr(self)), From=be)
 
     def __repr__(self):
+        if len(self.args) == 1 and len(self.kwargs) == 0:
+            if self.func == quote and isinstance(self.args[0], SQuotable):
+                return '+' + repr(self.args[0]).replace('\n', '\n ')
+            if self.func == unquote and isinstance(self.args[0], SUnquotable):
+                return '~' + repr(self.args[0]).replace('\n', '\n ')
         indent = '\n  '
         return "S({0}{1}{2})".format(
             repr(self.func),
@@ -262,14 +298,21 @@ class SExpression(Mapping, SEvaluable):
         return self.s_eval(kwargs)
 
     def s_unquote(self, scope):
-        return S(
-            s_unquote_in_scope(self.func, scope),
-            *tuple(s_unquote_in_scope(a, scope) for a in self.args),
-            # *tuple(chain(s_unquote_splice_in_scope(a, scope) for a in self.args)),
-            **{k: s_unquote_in_scope(v, scope) for k, v in self.kwargs.items()})
+        args = []
+        kwargs = {}
+        kwargs.update(self.kwargs)
+        for a in chain((self.func,), self.args):
+            arg, kwarg = s_unquote_in_scope(a, scope)
+            args.extend(arg)
+            kwargs.update(kwarg)
+        return S(*args, **kwargs)
 
-    def __invert__(self):
-        return Unquote(self)
+    # def s_unquote(self, scope):
+    #     return S(
+    #         s_unquote_in_scope(self.func, scope),
+    #         *tuple(s_unquote_in_scope(a, scope) for a in self.args),
+    #         # *tuple(chain(s_unquote_splice_in_scope(a, scope) for a in self.args)),
+    #         **{k: s_unquote_in_scope(v, scope) for k, v in self.kwargs.items()})
 
     class Quasiquote(Quote):
         def s_eval(self, scope):
@@ -282,8 +325,8 @@ class SExpression(Mapping, SEvaluable):
         return self.Quasiquote(self)
 
 
+# TODO: doctest unquote/splice
 # TODO: test double quoted
-# TODO: unquote/splice ~
 # the quasiquote expression
 #
 # `(foo ,bar ,@quux)
@@ -301,7 +344,7 @@ class SymbolError(NameError):
     pass
 
 
-class Symbol(UserString, str, SEvaluable):
+class Symbol(UserString, str, SEvaluable, SQuotable):
     """
     Symbols for S-expressions.
 
@@ -372,16 +415,6 @@ class Symbol(UserString, str, SEvaluable):
                 'Symbol %s is not bound in the given scope' % repr(self)
             ), From=None)
 
-    class SymbolQuote(Quote):
-        def __repr__(self):
-            return '+' + repr(self.item)
-
-    def __pos__(self):
-        return self.SymbolQuote(self)
-
-    def __invert__(self):
-        return Unquote(self)
-
 
 def _private():
     _gensym_counter = Var(0)
@@ -411,17 +444,17 @@ def _private():
         and macro debugging. The suffix is the gensym count at creation.
 
         >>> gensym()
-        Symbol('#:$1')
+        +Symbol('<#1>')
         >>> gensym(S.foo)  # foo prefix
-        Symbol('#:foo$2')
+        +Symbol('<foo#2>')
         >>> gensym(S.foo)  # not the same symbol as above
-        Symbol('#:foo$3')
+        +Symbol('<foo#3>')
         >>> gensym('foo')  # strings also work.
-        Symbol('#:foo$4')
+        +Symbol('<foo#4>')
         """
 
         return Symbol(
-            '#:{0}${1}'.format(prefix, str(_gensym_counter.set(1, add))))
+            '<{0}#{1}>'.format(prefix, str(_gensym_counter.set(1, add))))
 
 
 _private()
@@ -448,21 +481,14 @@ def _private():
 S = _private()
 del _private
 
+
 def flatten_sexpr(sexpr):
     res = []
     for v in sexpr.values():
+        while isinstance(v, SExpression.Quasiquote):
+            v = v.item
         if isinstance(v, SExpression):
             res.extend(flatten_sexpr(v))
         else:
             res.append(v)
     return res
-
-# defines an interface used by SExpression, so belongs here, not in macros.py
-def macro(func):
-    """
-    Marks the func as a macro.
-    In S-expressions, macros are given any S-expressions
-    unevaluated, then the result is evaluated.
-    """
-    func._macro_ = None
-    return func

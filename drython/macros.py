@@ -20,7 +20,7 @@ from itertools import chain
 
 from drython.statement import Print
 from drython.core import partition, identity, entuple, SEvaluable, interleave, apply
-from drython.s_expression import S, macro, s_eval_in_scope, flatten_sexpr, gensym, Symbol, Quote
+from drython.s_expression import S, macro, s_eval_in_scope, flatten_sexpr, gensym, Symbol
 from drython.statement import Elif, progn, Raise
 
 __test__ = {}
@@ -44,8 +44,10 @@ class SEval(SEvaluable):
             return res
         return self.body
 
+
 class ScopeError(NameError, KeyError):
     pass
+
 
 class Scope(MutableMapping):
     def __len__(self):
@@ -55,8 +57,10 @@ class Scope(MutableMapping):
         return iter(self.vars)
 
     def __init__(self, parent, local=None):
+        assert all(isinstance(x, str) for x in parent.keys())
         self.parent = parent
         self.vars = local or {}
+        assert all(isinstance(x, str) for x in self.vars.keys())
         self.nonlocals = set()
 
     def __getitem__(self, name):
@@ -69,6 +73,7 @@ class Scope(MutableMapping):
                 Raise(ScopeError('name %s not found in Scope' % repr(name)), From=ke)
 
     def __setitem__(self, name, val):
+        assert isinstance(name, str)
         if name in self.nonlocals:
             try:
                 self.parent[name] = val
@@ -85,8 +90,8 @@ class Scope(MutableMapping):
                 Raise(ScopeError('nonlocal %s not found' % repr(name)), From=ke)
 
     def __repr__(self):
-        return ('Scope(parent={0},local={1})'.format(self.parent,self.vars)
-               + ('.Nonlocal({0})'.format(self.nonlocals) if self.nonlocals else ''))
+        return ('Scope(local={1}, parent={0})'.format(self.parent, self.vars)
+                + ('.Nonlocal({0})'.format(self.nonlocals) if self.nonlocals else ''))
 
     # noinspection PyPep8Naming
     def Nonlocal(self, *names):
@@ -106,6 +111,7 @@ def scope():
 
 class SSetQ(SEvaluable):
     def __init__(self, pairs):
+        assert len(pairs) % 2 == 0
         self.pairs = partition(pairs)
 
     def s_eval(self, scope):
@@ -136,8 +142,8 @@ class SLambda(SEvaluable):
             assert len(optional) % 2 == 0
             pairs = tuple(partition(optional))
             keys, defaults = zip(*pairs) if pairs else ((), ())
-            # no gensyms in eval, so ban word.
-            assert 'locals' not in frozenset(required) | frozenset(keys) | {star, stars}
+            # # no gensyms in eval, so ban word.
+            # assert 'locals' not in frozenset(required) | frozenset(keys) | {star, stars}
             defaults = S(entuple, *defaults).s_eval(scope)
 
             _sentinel = object()
@@ -198,7 +204,7 @@ def defn(name, required, optional, star, stars, *body):
     return S(progn,
              S(setq, name, S(fn, required, optional, star, stars,
                              *body)),
-             name,)
+             name, )
 
 
 @macro
@@ -206,7 +212,7 @@ def defmac(name, required, optional, star, stars, *body):
     return S(progn,
              S(setq, name, S(mac, required, optional, star, stars,
                              *body)),
-             name,)
+             name, )
 
 
 @macro
@@ -334,45 +340,62 @@ def La(args, *body):
 #     # TODO: test varg, kwonlys, kwvarg, defaults
 #     return SLambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
 
-@macro
-def quote(item):
-    return Quote(item)
+
+
 
 defmac_g_ = None
 S(defmac, S.defmac_g_, (S.name, S.required, S.optional, S.star, S.stars), (), S.body, None,
   S(let1, S.syms, S(frozenset,
                     S(filter,
                       lambda x: isinstance(x, Symbol) and x.startswith('g_'),
+                      # S(L1, S.x,
+                      #   S(And,
+                      #     S(isinstance, S.x, Symbol),
+                      #     S(S(dot,S.x,S.startswith), 'g_'))),
                       # flatten_sexpr is only for sexpr, not tuples, so make one w/apply.
                       S(flatten_sexpr, S(apply, S, star=S.body)))),
     +S(defmac, ~S.name, ~S.required, ~S.optional, ~S.star, ~S.stars,
-       S(apply,
-         let_n, ~S(chain.from_iterable, S(map,
-                            S(L1, S.x,
-                              S(entuple, S.x, S(gensym, S.x))),
-                            S.syms)),
-         star=~S.body), ))).s_eval(globals())
+       ~S(Print, S.syms),
+       S(let_n, ~S(tuple, S(chain.from_iterable, S(map,
+                                                   lambda x: (x, gensym(x)),
+                                                   # S(L1, S.x,
+                                                   #   S(entuple, S.x, S(gensym, S.x.data))),
+                                                   S.syms))),
+         -S.body, )))).s_eval(globals())
 defmac_g_.__doc__ = """\
 defines a macro with automatic gensyms for symbols starting with g_
->>> from drython.s_expression import Quote
->>> S(progn,
-...   S(defmac_g_, S.foo, [],[],None,None,
-...     +~S.g_spam,
-...     S(Raise,S(Exception,S(repr,S(scope))))),
-...   S(S.foo))()
-q
 
-...     +S(quote, ~S.g_foo)),
-...   S(Print,S(S.foo)))()
-q
->>> from operator import gt
->>> S(defmac_g_, S.nif, [S.expr, S.pos, S.zero, S.neg],[],None,None,
-...   +S(let1, ~S.g_res, ~S.expr,
-...      S(If, S(gt,~S.g_res,0), ~S.pos,
-...        S(If, S(gt,0,~S.g_res), ~S.neg,
-...          Else=~S.zero)))).s_eval(globals())
->>> S(Print,S(S.nif,-1,1,0,-1)).s_eval(globals())
+>>> expensive_get_number = lambda: progn(Print("spam"),14)
+>>> S(progn,
+...   S(defmac, S.triple_1, [S.n],[],0,0,
+...   +S(sum,S(entuple,~S.n,~S.n,~S.n))),
+...   S(S.triple_1, S(S.expensive_get_number))).s_eval(globals())
+spam
+spam
+spam
+42
+>>> S(progn,
+...   S(defmac_g_, S.triple_2, [S.n],[],0,0,
+...     S(Raise,S(Exception,S(repr,S(scope)))),
+...     +S(progn,
+...        S(setq, ~S.g_n, ~S.n),
+...        S(sum,S(entuple,~S.g_n,~S.g_n,~S.g_n)))),
+...   S(S.triple_2, S(S.expensive_get_number))).s_eval(globals())
 """
+# => (defn expensive-get-number [] (print "spam") 14)
+# => (defmacro triple-1 [n] `(+ n n n))
+# => (triple-1 (expensive-get-number))  ; evals n three times!
+# spam
+# spam
+# spam
+# 42
+#
+# You can avoid this with a gensym:
+#
+# => (defmacro/g! triple-2 [n] `(do (setv ~g!n ~n) (+ ~g!n ~g!n ~g!n)))
+# => (triple-2 (expensive-get-number))  ; avoid repeats with a gensym
+# spam
+# 42
 # (defmacro/g! nif [expr pos zero neg]
 # `(let [[~g!res ~expr]]
 # (cond [(pos? ~g!res) ~pos]
@@ -559,27 +582,3 @@ del _private
 
 # TODO: doctests
 # import doctest; doctest.testmod()
-
-
-# # s_eval_in_scope may have made this obsolete
-# class Quote(object):
-#     __slots__ = ('item',)
-#
-#     def __init__(self, item):
-#         self.item = item
-#
-#     def s_eval(self, scope):
-#         return self.item
-#
-#     def __repr__(self):
-#         return 'Quote(%s)' % repr(self.item)
-#
-#     @classmethod
-#     def of(cls, item):
-#         """
-#         Unlike the usual __init__(), of() will not
-#         quote the item if it is already s-evaluable
-#         """
-#         if hasattr(item, 's_eval'):
-#             return item
-#         return cls(item)
