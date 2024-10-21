@@ -85,6 +85,22 @@ class Quote(SEvaluable, SQuotable):
 
 @macro
 def unquote(item):
+    r"""
+    unquotes an element in a quasiquoted S-expression.
+    >>> from drython.macros import *
+    >>> from operator import add
+    >>> sexp = S(progn,
+    ...          S(setq,
+    ...            S.x,1,
+    ...            S.y,':'),
+    ...          +S(Print,~S.x,2,~S(add,S.x,2),sep=~S.y,end=~S(add,'$','\n')))()
+    >>> sexp.args
+    (1, 2, 3)
+    >>> sexp.kwargs == dict(sep=':',end='$\n')
+    True
+    >>> sexp()
+    1:2:3$
+    """
     return Unquote(item)
 
 
@@ -299,8 +315,7 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
 
     def s_unquote(self, scope):
         args = []
-        kwargs = {}
-        kwargs.update(self.kwargs)
+        kwargs = {k: s_unquote_in_scope(v, scope)[0][0] for k, v in self.kwargs.items()}
         for a in chain((self.func,), self.args):
             arg, kwarg = s_unquote_in_scope(a, scope)
             args.extend(arg)
@@ -314,15 +329,21 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
     #         # *tuple(chain(s_unquote_splice_in_scope(a, scope) for a in self.args)),
     #         **{k: s_unquote_in_scope(v, scope) for k, v in self.kwargs.items()})
 
-    class Quasiquote(Quote):
-        def s_eval(self, scope):
-            return self.item.s_unquote(scope)
-
-        def __repr__(self):
-            return '+' + repr(self.item).replace('\n', '\n ')
-
     def __pos__(self):
-        return self.Quasiquote(self)
+        return S(quasiquote, self)
+
+
+class Quasiquote(Quote):
+    def s_eval(self, scope):
+        return self.item.s_unquote(scope)
+
+    def __repr__(self):
+        return '+' + repr(self.item).replace('\n', '\n ')
+
+
+@macro
+def quasiquote(sexpr):
+    return Quasiquote(sexpr)
 
 
 # TODO: doctest unquote/splice
@@ -444,13 +465,13 @@ def _private():
         and macro debugging. The suffix is the gensym count at creation.
 
         >>> gensym()
-        +Symbol('<#1>')
+        Symbol('<#1>')
         >>> gensym(S.foo)  # foo prefix
-        +Symbol('<foo#2>')
+        Symbol('<foo#2>')
         >>> gensym(S.foo)  # not the same symbol as above
-        +Symbol('<foo#3>')
+        Symbol('<foo#3>')
         >>> gensym('foo')  # strings also work.
-        +Symbol('<foo#4>')
+        Symbol('<foo#4>')
         """
 
         return Symbol(
