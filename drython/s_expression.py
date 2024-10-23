@@ -102,7 +102,7 @@ def unquote(item):
     ...             ~S(add,S.x,2),
     ...             sep=~S.y,
     ...             end=~S(add,'$','\n')))()
-    >>> sexp.fargs  # atoms appear in the same order as written
+    >>> sexp.args  # atoms appear in the same order as written
     (<built-in function print>, 1, 42, 3)
     >>> sexp.kwargs == dict(sep=':',end='$\n')  # kwargs also work!
     True
@@ -162,12 +162,16 @@ def unquote_splice(item):
     this is because an S-expression is a Mapping.
     int keys are the args, str keys are the kwargs.
     >>> S(progn,
-    ...   S(setq,S.x,{0:1,1:2,'end':'$\n'}),  # store a dict in variable S.x
+    ...   S(setq,S.x,{0:1,1:2,'end':'$\n'}, S.sep, ':'),  # store a dict in variable S.x
     ...   +S(-+S(Print,0),  # quote to use sexpr as mapping and unquote_splice it
-    ...      -+S(sep=':'),  # kwargs don't have to be at the end.
+    ...      -+S(sep=~S.sep),  # kwargs don't have to be at the end.
     ...      -S.x,  # evaluates to the dict
     ... ))()()  # eval the progn, then the progn's result
     0:1:2$
+
+    double unquoting
+    >>> S(progn,+S(Print,11,-+S(0,0,  1,42,  sep=~~S(add,':',':')),33))()()
+    11::0::42::33
     """
     return UnquoteSplice(item)
 
@@ -264,6 +268,13 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
     >>> S(Print,1,2,3,sep='::')()
     1::2::3
 
+    S-expressions are mappings, and can be created from mappings.
+    >>> spam = S**{0:Print, 1:'a', 2:'b', 3:'c', 'sep':'; '}
+    >>> spam()
+    a; b; c
+    >>> spam['sep']
+    '; '
+
     Important: SExpression will not peek into other data structures to evaluate
     nested SEvaluable objects. You must evaluate them explicitly, or use
     an S-expression to create the data structure.
@@ -306,7 +317,7 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
         try:
             return self.kwargs[key]
         except KeyError:
-            return self.fargs[key]
+            return self.args[key]
 
     def __iter__(self):
         """
@@ -318,13 +329,13 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
         >>> tuple(foo.items())
         ((0, <built-in function print>), (1, 'a'), (2, 'b'), (3, 'c'), ('sep', '::'))
         """
-        return chain(range(len(self.fargs)), self.kwargs)
+        return chain(range(len(self.args)), self.kwargs)
 
     def __len__(self):
-        return len(self.fargs) + len(self.kwargs)
+        return len(self.args) + len(self.kwargs)
 
     def __init__(self, *args, **kwargs):
-        self.fargs = args
+        self.args = args
         self.kwargs = kwargs
 
     @staticmethod
@@ -336,20 +347,20 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
         if not self:
             return self
         try:
-            func = s_eval_in_scope(self.fargs[0], scope)
+            func = s_eval_in_scope(self.args[0], scope)
             if hasattr(func, '_macro_'):
-                return s_eval_in_scope(func(*self.fargs[1:], **self.kwargs), scope)
+                return s_eval_in_scope(func(*self.args[1:], **self.kwargs), scope)
             return func(
                 # generators CAN Unpack with *,
                 # but they mask TypeError messages due to Python bug!
                 # so we make it a tuple for better errors.
-                *tuple(s_eval_in_scope(a, scope) for a in self.fargs[1:]),
+                *tuple(s_eval_in_scope(a, scope) for a in self.args[1:]),
                 **{k: s_eval_in_scope(v, scope) for k, v in self.kwargs.items()})
         except BaseException as be:
             Raise(SExpressionException('when evaluating\n' + repr(self)), From=be)
 
     def __repr__(self):
-        if len(self.fargs) == 2 and len(self.kwargs) == 0:
+        if len(self.args) == 2 and len(self.kwargs) == 0:
             if self[0] == quote and isinstance(self[1], SQuotable):
                 return '+' + repr(self[1]).replace('\n', '\n ')
             if self[0] == unquote and isinstance(self[1], SUnquotable):
@@ -358,8 +369,8 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
         return "S({0})".format(
             (',' + indent).join(
                 (
-                    ((',' + indent).join(map(lambda a: repr(a).replace('\n', indent), self.fargs)),)
-                    if self.fargs else ()
+                    ((',' + indent).join(map(lambda a: repr(a).replace('\n', indent), self.args)),)
+                    if self.args else ()
                 ) + (
                     ('**{0}'.format(repr(self.kwargs).replace('\n', indent)),)
                     if self.kwargs else ()
@@ -373,7 +384,7 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
     def s_unquote(self, scope):
         args = []
         kwargs = {k: s_unquote_in_scope(v, scope)[0][0] for k, v in self.kwargs.items()}
-        for a in self.fargs:
+        for a in self.args:
             arg, kwarg = s_unquote_in_scope(a, scope)
             args.extend(arg)
             kwargs.update(kwarg)
@@ -550,6 +561,9 @@ def _private():
         def __call__(self, *args, **kwargs):
             return SExpression(*args, **kwargs)
 
+        def __pow__(self, mapping):
+            return SExpression.from_mapping(mapping)
+
         def __getattribute__(self, attr):
             return Symbol(attr)
 
@@ -561,10 +575,11 @@ del _private
 
 
 def flatten_sexpr(sexpr):
+    """
+    recursively return all values in an S-expression as a list.
+    """
     res = []
     for v in sexpr.values():
-        while isinstance(v, SExpression.Quasiquote):
-            v = v.item
         if isinstance(v, SExpression):
             res.extend(flatten_sexpr(v))
         else:

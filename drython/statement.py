@@ -291,7 +291,7 @@ def Elif(*thunks, **Else):
     a
     4
 
-    Recall that `if` is already an expression. These can be nested,
+    Recall that `a if b else c` is already an expression. These can be nested,
     but Elif may be easier to use for deep nesting.
     """
     assert len(thunks) % 2 == 0
@@ -852,7 +852,7 @@ def progn(*body):
     >>> spam
     42
     """
-    return body[-1] if body else None
+    return body[-1] if body else Empty
 
 
 __all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]

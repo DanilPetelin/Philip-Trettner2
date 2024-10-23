@@ -540,10 +540,14 @@ def _private():
     # noinspection PyShadowingNames
     @macro
     def thr(x, first=_sentinel, *rest):
+        """
+        >>> spam = "backwards. is sentence This"
+        >>> S(thr, spam.replace("backwards", "forwards").split(), S(reversed), S(' '.join))()
+        """
         # TODO: doctest threading
         if first is _sentinel:
             return x
-        return thr(S(first.func, x, *first.args, **first.kwargs), *rest)
+        return thr(S(first[0], x, *first.args[1:], **first.kwargs), *rest)
 
     # noinspection PyShadowingNames
     @macro
@@ -551,7 +555,7 @@ def _private():
         # TODO: doctest threading_tail
         if first is _sentinel:
             return x
-        return thrt(S(first.func, *(first.args + (x,)), **first.kwargs), *rest)
+        return thrt(S(first[0], *(first.args[1:] + (x,)), **first.kwargs), *rest)
 
 
 thr = None
