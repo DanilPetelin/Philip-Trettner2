@@ -86,20 +86,28 @@ class Quote(SEvaluable, SQuotable):
 @macro
 def unquote(item):
     r"""
-    unquotes an element in a quasiquoted S-expression.
+    unquotes an element in a quasiquoted S-expression. Usually written as ~S...
+
+    unquote works on S-expressions and Symbols, in any position in a quasiquoted form.
     >>> from drython.macros import *
     >>> from operator import add
     >>> sexp = S(progn,
     ...          S(setq,
+    ...            S.foo,Print,
     ...            S.x,1,
     ...            S.y,':'),
-    ...          +S(Print,~S.x,2,~S(add,S.x,2),sep=~S.y,end=~S(add,'$','\n')))()
-    >>> sexp.args
-    (1, 2, 3)
-    >>> sexp.kwargs == dict(sep=':',end='$\n')
+    ...          +S(~S.foo,
+    ...             ~S.x,
+    ...             42,
+    ...             ~S(add,S.x,2),
+    ...             sep=~S.y,
+    ...             end=~S(add,'$','\n')))()
+    >>> sexp.fargs  # atoms appear in the same order as written
+    (<built-in function print>, 1, 42, 3)
+    >>> sexp.kwargs == dict(sep=':',end='$\n')  # kwargs also work!
     True
-    >>> sexp()
-    1:2:3$
+    >>> sexp()  # the function position too.
+    1:42:3$
     """
     return Unquote(item)
 
@@ -111,7 +119,10 @@ class Unquote(SQuotable):
         self.item = item
 
     def __repr__(self):
-        return self.PREFIX + repr(self.item).replace('\n', '\n ')
+        if isinstance(self.item, SUnquotable):
+            return self.PREFIX + repr(self.item).replace('\n', '\n ')
+        else:
+            return '<{0} {1}>'.format(self.__class__.__name__, repr(self.item))
 
     def s_unquote(self, scope):
         return self.item.s_eval(scope)
@@ -126,25 +137,61 @@ class UnquoteSplice(Unquote):
 
 @macro
 def unquote_splice(item):
+    r"""
+    inserts arguments into a quasiquoted form. Usually written as -S...
+
+    generally works on iterables.
+    >>> from drython.macros import *
+    >>> args = (1,2,3)
+    >>> sexp = S(progn,+S(Print, 0.0, -S.args, 4.4)).s_eval(globals())
+    >>> sexp
+    S(<built-in function print>,
+      0.0,
+      1,
+      2,
+      3,
+      4.4)
+    >>> sexp()
+    0.0 1 2 3 4.4
+
+    also works on quoted S-expressions, keyword args too!
+    >>> S(progn,S(setq,S.x,+S(1,2,3,sep=':')),
+    ...   +S(Print, 0.0, -S.x, -S(entuple, 44,55), 6.6, end='$\n'))()()
+    0.0:1:2:3:44:55:6.6$
+
+    this is because an S-expression is a Mapping.
+    int keys are the args, str keys are the kwargs.
+    >>> S(progn,
+    ...   S(setq,S.x,{0:1,1:2,'end':'$\n'}),  # store a dict in variable S.x
+    ...   +S(-+S(Print,0),  # quote to use sexpr as mapping and unquote_splice it
+    ...      -+S(sep=':'),  # kwargs don't have to be at the end.
+    ...      -S.x,  # evaluates to the dict
+    ... ))()()  # eval the progn, then the progn's result
+    0:1:2$
+    """
     return UnquoteSplice(item)
+
 
 def args_kwargs(data):
     args = []
     kwargs = Empty
     try:
         for i in count():
-           args.append(data[i])
-    except IndexError: pass
-    except KeyError: pass
+            args.append(data[i])
+    except IndexError:
+        pass
+    except KeyError:
+        pass
     if isinstance(data, Mapping):
         kwargs = {k: v for k, v in data.items() if not isinstance(k, int)}
     return args, kwargs
 
+
 def s_unquote_in_scope(element, scope):
-    if isinstance(element, SExpression):
-        if element.func == unquote:
+    if isinstance(element, SExpression) and element:
+        if element[0] == unquote:
             element = element.s_eval(scope)
-        elif element.func == unquote_splice:
+        elif element[0] == unquote_splice:
             element = element.s_eval(scope).s_unquote(scope)
             return args_kwargs(element)
     if hasattr(element, 's_unquote'):
@@ -259,7 +306,7 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
         try:
             return self.kwargs[key]
         except KeyError:
-            return entuple(self.func, *self.args)[key]
+            return self.fargs[key]
 
     def __iter__(self):
         """
@@ -271,44 +318,54 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
         >>> tuple(foo.items())
         ((0, <built-in function print>), (1, 'a'), (2, 'b'), (3, 'c'), ('sep', '::'))
         """
-        return chain(range(len(self.args) + 1), self.kwargs)
+        return chain(range(len(self.fargs)), self.kwargs)
 
     def __len__(self):
-        return 1 + len(self.args) + len(self.kwargs)
+        return len(self.fargs) + len(self.kwargs)
 
-    def __init__(self, func, *args, **kwargs):
-        self.func = func
-        self.args = args
+    def __init__(self, *args, **kwargs):
+        self.fargs = args
         self.kwargs = kwargs
 
+    @staticmethod
+    def from_mapping(mapping):
+        args, kwargs = args_kwargs(mapping)
+        return S(*args, **kwargs)
+
     def s_eval(self, scope):
+        if not self:
+            return self
         try:
-            func = s_eval_in_scope(self.func, scope)
+            func = s_eval_in_scope(self.fargs[0], scope)
             if hasattr(func, '_macro_'):
-                return s_eval_in_scope(func(*self.args, **self.kwargs), scope)
+                return s_eval_in_scope(func(*self.fargs[1:], **self.kwargs), scope)
             return func(
                 # generators CAN Unpack with *,
                 # but they mask TypeError messages due to Python bug!
                 # so we make it a tuple for better errors.
-                *tuple(s_eval_in_scope(a, scope) for a in self.args),
+                *tuple(s_eval_in_scope(a, scope) for a in self.fargs[1:]),
                 **{k: s_eval_in_scope(v, scope) for k, v in self.kwargs.items()})
         except BaseException as be:
             Raise(SExpressionException('when evaluating\n' + repr(self)), From=be)
 
     def __repr__(self):
-        if len(self.args) == 1 and len(self.kwargs) == 0:
-            if self.func == quote and isinstance(self.args[0], SQuotable):
-                return '+' + repr(self.args[0]).replace('\n', '\n ')
-            if self.func == unquote and isinstance(self.args[0], SUnquotable):
-                return '~' + repr(self.args[0]).replace('\n', '\n ')
+        if len(self.fargs) == 2 and len(self.kwargs) == 0:
+            if self[0] == quote and isinstance(self[1], SQuotable):
+                return '+' + repr(self[1]).replace('\n', '\n ')
+            if self[0] == unquote and isinstance(self[1], SUnquotable):
+                return '~' + repr(self[1]).replace('\n', '\n ')
         indent = '\n  '
-        return "S({0}{1}{2})".format(
-            repr(self.func),
-            ',' + indent + (',' + indent).join(
-                map(lambda a: repr(a).replace('\n', indent), self.args))
-            if self.args else '',
-            ',{0}**{1}'.format(indent, repr(self.kwargs).replace('\n', indent))
-            if self.kwargs else '')
+        return "S({0})".format(
+            (',' + indent).join(
+                (
+                    ((',' + indent).join(map(lambda a: repr(a).replace('\n', indent), self.fargs)),)
+                    if self.fargs else ()
+                ) + (
+                    ('**{0}'.format(repr(self.kwargs).replace('\n', indent)),)
+                    if self.kwargs else ()
+                )
+            )
+        )
 
     def __call__(self, **kwargs):
         return self.s_eval(kwargs)
@@ -316,7 +373,7 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
     def s_unquote(self, scope):
         args = []
         kwargs = {k: s_unquote_in_scope(v, scope)[0][0] for k, v in self.kwargs.items()}
-        for a in chain((self.func,), self.args):
+        for a in self.fargs:
             arg, kwarg = s_unquote_in_scope(a, scope)
             args.extend(arg)
             kwargs.update(kwarg)
@@ -490,8 +547,8 @@ def _private():
         """
         __slots__ = ()
 
-        def __call__(self, func, *args, **kwargs):
-            return SExpression(func, *args, **kwargs)
+        def __call__(self, *args, **kwargs):
+            return SExpression(*args, **kwargs)
 
         def __getattribute__(self, attr):
             return Symbol(attr)

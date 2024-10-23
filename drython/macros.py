@@ -434,10 +434,11 @@ def Nonlocal(*symbols):
 
 # noinspection PyPep8Naming
 @macro
-def If(boolean, then, Else=None):
+def If(boolean, then, Else=S()):
     """
     >>> from operator import add, sub
     >>> S(If, S(sub, 1, 1), S(Print, 'then'))()
+    S()
     >>> S(If, S(add, 1, 1), S(Print, 'then'))()
     then
     >>> S(If, S(add, 1, 1),
@@ -459,7 +460,7 @@ def If(boolean, then, Else=None):
 @macro
 def cond(*rest, **Else):
     assert Else.keys() <= frozenset(['Else'])
-    Else = Else.get('Else', None)
+    Else = Else.get('Else', S())
     return S(Elif,
              *map(lambda x: S(identity,
                               x),
@@ -533,7 +534,7 @@ def dot(obj, *names):
 
 
 def _private():
-    _sentinel = S(None)  # used only for is check
+    _sentinel = object()  # used only for is check
 
     global thr, thrt
     # noinspection PyShadowingNames
