@@ -26,12 +26,16 @@ Using metaclasses to rewrite class declarations is a more powerful example.
 
 But Python has more general metaprogramming capabilities.
 The secret to metaprogramming is treating code as just another kind of data.
+(The DRY principle applies to any kind of data, *especially* the executable kind!)
 
 For example, Python can write text files, including .py files, which it can then import as modules.
+
+Any programming language with access to the filesystem and a compiler could theoretically do this.
 Python can also create strings, including strings containing Python code, which it can execute with
 the `exec()` function.
-Sometimes this approach is appropriate, but manipulating text as correct
-Python code can be difficult and error-prone.
+Sometimes this approach is appropriate, indeed,
+some of the Python standard library (like namedtuple) uses this technique.
+But manipulating text as Python code can be difficult and error-prone.
 Compiling text is also rather slow.
 
 Alternatives to text manipulation include manipulation of Python bytecodes
@@ -58,7 +62,7 @@ so it's portable across implementations, including CPython2.7/3.1+, PyPy, Jython
 Can you re-implement a simple if-statement in Python?
 I mean without writing a text compiler or interpreter, or modifying Python itself?
 Sure, you don't have to, Python has a perfectly good if-statement already, but can you?
-A DSL might need a three-way if-statement (-/+/0), or something like a switch-case.
+A DSL might need a three-way numeric if-statement (-/+/0), or something like a switch-case.
 Yes, you can use the boilerplate cascading-elif pattern instead
 for any of your complex branching needs, but that's not an abstraction, is it?
 You have to re-write the logic imitating the switch-case (or what-have-you)
@@ -68,26 +72,81 @@ how can you expect to make a complex one when you need it?
 
 You might not think Python can do it, but it's actually trivial in Smalltalk.
 "If" isn't a statement in Smalltalk to begin with.
-It's a method. On the booleans. In pseudo-Smalltalk-Python it would be something like this:
+It's a method. On the booleans.
 
-    Python
-    (foo < bar).iftrue_iffalse({
-        # then-code here
-    }, {
-        # else-code here
-    })
+```Smalltalk
+result := a > b
+    ifTrue:[ 'greater' ]
+    ifFalse:[ 'not greater' ]
+```
 
-The `(foo < bar)` part evaluates to either `True` or `False` depending if
-`foo` is less then `bar` just like in normal Python.
-The `{}` isn't a dictionary; it's a code block.
-The `True` boolean has an `iftrue_iffalse` method that always executes the then-block,
-but `False` has a different version of `iftrue_iffalse` that only executes the else-block.
-Is that cool or what?
+The `:=` is just an assignment.
+The `a > b` part evaluates to either true or false, just like Python.
+The `[]` isn't a list; it's a **code block**.
+The true boolean has an `iftrue:iffalse:` method that always executes the then-block,
+but false has a different method *with the same name* that only executes the else-block.
+Is that cool or what? Yes, that's one method, not two, an interesting quirk of Smalltalk is that
+the arguments can go inside of the method name. There are also completely separate `iftrue:` and
+`iffalse:` methods that take one argument each.
+
+We can achieve a very similar effect in Python.
+You can't modify builtins, but a method is just a function that takes the instance as its first
+argument, which by convention we call `self`.
+
+
+```Python
+result = (lambda self, *, ifTrue=None, ifFalse=None: (ifFalse, ifTrue)[bool(self)])(
+a > b,
+    ifTrue='greater,
+    ifFalse='not greater',
+)
+```
+
+But there's a problem. This only works on values. What if we want effects?
+
+```Python
+(lambda self, *, ifTrue=None, ifFalse=None: (ifFalse, ifTrue)[bool(self)])(
+a > b,
+    ifTrue=print('greater'),
+    ifFalse=print('not greater'),
+)
+```
+
+Clearly, this won't work! It prints both messages.
+
 Too bad Python doesn't have those blocks things, or re-implementing `if` would be easy. Or does it?
 
 Actually, a code block is just an anonymous function.
-Python calls it `lambda`.
-Unfortunately, lambdas in Python can't contain statements, or this could work in Python too.
+Python could do something similar with `def`.
+
+```Python
+my_if = lambda self, *, ifTrue=None, ifFalse=None: (ifFalse, ifTrue)[bool(self)]()  # note the ()
+
+def anon_1():
+    print('greater')
+
+def anon_2():
+    print('not greater')
+
+my_if(
+a > b,
+    ifTrue=anon_1,
+    ifFalse=anon_2,
+)
+```
+
+But these functions are passed by name, so they're not really anonymous, are they?
+The code is also not inside the control "statement" anymore, so it's kind of harder to read.
+
+Python does have anonymous inline functions though, with `lambda`.
+```Python
+my_if(
+a > b,
+    ifTrue=lambda: print('greater'),
+    ifFalse=lambda: print('not greater'),
+)
+```
+Unfortunately, lambdas in Python can't contain statements, so they can't work as general code bocks.
 Or can they?
 
 With drython's statement module, they can.
@@ -97,7 +156,7 @@ Python statement that isn't already an expression.
 They work in lambdas.
 They work in `eval()`.
 They're pretty handy in drython's executable data structures,
-which therefore only have to use expressions.
+which therefore don't require statement code.
 This makes them a lot simpler than AST, and therefore easier to use.
 
 Too bad `lambda` can't have multiple expressions, or this might actually work.
@@ -107,15 +166,15 @@ What if you had an expression that contained multiple expressions,
 and executed them one-by-one in order?
 You do. It's a tuple literal. Think of the commas as semicolons and you get the idea.
 
-What if you just want to return the value of the last "statement",
+What if you just want to `return` the value of the last "statement",
 instead of a tuple of all of them?
-Declare a tuple and immediately index it `(...)[-1]`.
-The included `progn` function does exactly this.
+Declare a tuple and immediately index it `(...)[-1]`?
+The included `progn` function does exactly this, and also doesn't crash if its args tuple is empty.
 
-Ready to write that `if`?
-(If not, look at the `Elif()` function in the statement module for hints.)
-Congratulations, you've just learned new abstractions.
-You can extend Python's syntax and write your DSL in that.
+Ready to write that three-way if?
+
+***Congratulations,*** you've just learned new abstractions!
+You can extend Python's syntax without changing the grammar and write your DSL in that.
 No need to write your own compiler or interpreter, because it's still just Python.
 Ready for the next step?
 
@@ -133,20 +192,43 @@ Lisp can do it with macros. Python can do it too, with drython.
 An S-expression is an abstracted function *call*.
 You create an S-expression instance with a function and its arguments.
 
-    Python
-    S(print, "Hello,", "World!")
+```Python
+S(print, "Hello,", "World!")
+```
 
 But the call doesn't happen until you invoke its `s_eval()` method,
 at which point it calls `s_eval()` on all its s-evaluable arguments
 (typically nested S-expressions), and then applies the function to the results.
 
-    Python
-    >>> S(print, S("Hello,".upper), S("World!".lower)).s_eval()
-    HELLO, world!
-
 With this recursive evaluation and the statement replacements from the statement module,
 it is possible to write entire programs as nested S-expressions.
 Think of S-expressions as a simpler kind of abstract syntax trees.
+
+```Python
+>>> S(print, S("Hello,".upper), S("World!".lower)).s_eval({})
+HELLO, world!
+```
+
+Note the dictionary in the `s_eval` call.
+S-expressions have their own scope for delayed evaluation of `Symbol`s.
+For a module-level S-expression, you might want to pass in the `globals()`,
+which will make them available as the equivalent symbol.
+```Python
+>>> spam = 7
+>>> S(print, S.spam).s_eval(globals())  # S.spam is the same as Symbol('spam')
+7
+>>> S(setq, S.spam, 42).s_eval(globals())  # globals() is writable.
+>>> spam
+42
+```
+
+You can also use an S-expression as a kind of lambda. Calling one directly will call `s_eval` with
+the kwargs dict.
+
+```Python
+>>> S(print, S.x, S.y, 3, sep=S.sep)(x=1, y=2, sep=':')
+1:2:3
+```
 
 If the S-expression's function is a *macro*,
 then it gets any s-evaluable arguments unevaluated,
@@ -155,13 +237,14 @@ In other words, macros can re-write code.
 
 So you can define "if" like this:
 
-    Python
-    @macro
-    def If(boolean, then, Else=None):
-        return S(s_eval,
-                 S((Else, then).__getitem__,
-                   S(bool,
-                     boolean)))
+```Python
+@macro
+def If(boolean, then, Else=None):
+    return S(s_eval,
+             S((Else, then).__getitem__,
+               S(bool,
+                 boolean)))
+```
 
 The above macro rewrites the code into an S-expression that indexes a pair (2-tuple)
 using the test part coerced into a boolean,
