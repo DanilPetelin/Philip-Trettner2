@@ -28,7 +28,7 @@ Typical module import is:
 This includes
 `Var` (thread-locked nonlocal assignment emulation),
 `let` (local assignment emulation and Return() support),
-`progn` (for side effects in expressions, especially lambdas),
+`do` (for side effects in expressions, especially lambdas),
 plus the 13 keyword statement replacements.
 
 Despite convention for Python function names, the 13 replacements
@@ -68,7 +68,7 @@ is the same as
 
 A substitute for `def` is not provided here, but `lambda` is a viable
 alternative now that most statements are available as expressions.
-Multiple sequential expressions are available in lambda via progn.
+Multiple sequential expressions are available in lambda via do.
 Multiple exits are available via let/Return:
 
     lambda ...: let(lambda:(
@@ -247,7 +247,7 @@ class Continue(LabeledException):
     1 2
     2 0
     2 1
-    >>> For(range(3), lambda i: progn(
+    >>> For(range(3), lambda i: do(
     ...     Print(i),
     ...     While(lambda:True, lambda:
     ...         Continue('outer')),
@@ -504,33 +504,33 @@ class Return(LabeledResultException):
     Aborts an expression early, but keeps a result value.
     Must be wrapped in a let().
 
-    >>> let(lambda: progn(
+    >>> let(lambda: do(
     ...  1,
     ...  2,
     ...  3,))
     3
-    >>> let(lambda: progn(
+    >>> let(lambda: do(
     ...  1,
     ...  Return(2),
     ...  3,))
     2
 
     Like `return` an empty Return() returns None.
-    >>> let(lambda: progn(
+    >>> let(lambda: do(
     ...  1,
     ...  Return(),
     ...  3,))
 
     Like `return`, multiple Return values result in a tuple.
-    >>> let(lambda: progn(
+    >>> let(lambda: do(
     ...  1,
     ...  Return(1,2,3),
     ...  3,))
     (1, 2, 3)
 
     Can return through multiple let()s using a label.
-    >>> let(label='outer', body=lambda a=1,d=4: progn(
-    ...   let(lambda b=42,c=3: progn(
+    >>> let(label='outer', body=lambda a=1,d=4: do(
+    ...   let(lambda b=42,c=3: do(
     ...     a,
     ...     Return(b,label='outer'),
     ...     c,)),
@@ -556,7 +556,7 @@ def Try(thunk, *Except, **ElseFinally):
     Else is not evaluated after exceptions.
     >>> Try(lambda:
     ...         1/0,  # error
-    ...     ZeroDivisionError, lambda zdr: progn(
+    ...     ZeroDivisionError, lambda zdr: do(
     ...         Print(zdr.__class__.__name__),
     ...         'returns: take a limit!',),
     ...     Finally=lambda:
@@ -570,7 +570,7 @@ def Try(thunk, *Except, **ElseFinally):
     Try() evaluates to the else part if provided.
     >>> Try(lambda:
     ...         0/1,  # allowed
-    ...     ZeroDivisionError, lambda zdr: progn(
+    ...     ZeroDivisionError, lambda zdr: do(
     ...         Print(zdr),
     ...         'take a limit!',),
     ...     Finally=lambda:
@@ -729,7 +729,7 @@ def While(predicate, body, label=None, Else=Pass):
     2
 
     While also supports labels.
-    >>> While(lambda: True, lambda:progn(
+    >>> While(lambda: True, lambda:do(
     ...     While(lambda: True, lambda:
     ...         Break('done',label='outer')),
     ...     Print('impossible')),
@@ -766,7 +766,7 @@ def With(guard, body):
     ...     Print('exit')
 
     With returns the result of body
-    >>> With(test, lambda ans:progn(
+    >>> With(test, lambda ans:do(
     ...     Print(ans),
     ...     'The result.',))
     enter
@@ -798,7 +798,7 @@ def With(guard, body):
     Thus, nested Withs will work the same way:
     With(A,lambda a:
         With(B,lambda b:
-            progn(...)))
+            do(...)))
     """
     with guard() as g:
         return body(g)
@@ -833,20 +833,20 @@ def let(body, args=(), kwargs=Empty, label=None):
         return r.result
 
 
-def progn(*body):
+def do(*body):
     """
     returns its last argument.
-    >>> progn(1,1+1,1+1+1)
+    >>> do(1,1+1,1+1+1)
     3
 
-    To keep all arguments, use a tuple instead of a progn.
+    To keep all arguments, use a tuple instead of a do.
     >>> (1,1+1,1+1+1)
     (1, 2, 3)
 
-    progn is used to combine several expressions into one by sequencing,
+    do is used to combine several expressions into one by sequencing,
     for side-effects. Python guarantees sequential evaluation of arguments:
     https://docs.python.org/3/reference/expressions.html#evaluation-order
-    >>> spam = progn(Print('side'),Print('effect'),'suppressed',42)
+    >>> spam = do(Print('side'),Print('effect'),'suppressed',42)
     side
     effect
     >>> spam

@@ -169,23 +169,23 @@ def choice(stack):
 # ##
 
 @Combinator
-def do(stack):
+def call(stack):
     """
-    The do combinator applies an ordinary Python function to a
+    The call combinator applies an ordinary Python function to a
     list of arguments.
 
     (The Print function returns None)
-    >>> Stack([1,2,3],Print,do)
+    >>> Stack([1,2,3],Print,call)
     1 2 3
     Stack(None,)
 
     Keywords are also supported with a dictionary
-    >>> Stack([1,2,3],dict(sep=':'),Print,do)
+    >>> Stack([1,2,3],dict(sep=':'),Print,call)
     1:2:3
     Stack(None,)
 
     Use an empty list for no arguments
-    >>> Stack([],dict,do)
+    >>> Stack([],dict,call)
     Stack({},)
 
     Any non-Mapping iterable will do for the arguments list.
@@ -318,13 +318,13 @@ def ifte(stack):
     >>> from operator import lt
     >>> from drython.stack import op
     >>> Stack([1,2,op(lt)],
-    ...       [['was true'],Print,do],
-    ...       [["wasn't"],Print,do], ifte)
+    ...       [['was true'],Print,call],
+    ...       [["wasn't"],Print,call], ifte)
     was true
     Stack(None,)
     >>> Stack([2,1,op(lt)],
-    ...       [['was true'],Print,do],
-    ...       [["wasn't"],Print,do], ifte)
+    ...       [['was true'],Print,call],
+    ...       [["wasn't"],Print,call], ifte)
     wasn't
     Stack(None,)
     """

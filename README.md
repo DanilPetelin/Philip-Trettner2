@@ -62,10 +62,10 @@ so it's portable across implementations, including CPython2.7/3.1+, PyPy, Jython
 Can you re-implement a simple if-statement in Python?
 I mean without writing a text compiler or interpreter, or modifying Python itself?
 Sure, you don't have to, Python has a perfectly good if-statement already, but can you?
-A DSL might need a three-way numeric if-statement (-/+/0), or something like a switch-case.
+A DSL might need a three-way numeric if-statement (-/+/0), or something like a switch/case.
 Yes, you can use the boilerplate cascading-elif pattern instead
 for any of your complex branching needs, but that's not an abstraction, is it?
-You have to re-write the logic imitating the switch-case (or what-have-you)
+You have to re-write the logic imitating the switch/case (or what-have-you)
 **every single time**.
 If you can't make a simple `if` substitute,
 how can you expect to make a complex one when you need it?
@@ -85,7 +85,7 @@ The `a > b` part evaluates to either true or false, just like Python.
 The `[]` isn't a list; it's a **code block**.
 The true boolean has an `iftrue:iffalse:` method that always executes the then-block,
 but false has a different method *with the same name* that only executes the else-block.
-Is that cool or what? Yes, that's one method, not two, an interesting quirk of Smalltalk is that
+Is that cool or what? Yes, `iftrue:iffasle` is one method, not two, an interesting quirk of Smalltalk is that
 the arguments can go inside of the method name. There are also completely separate `iftrue:` and
 `iffalse:` methods that take one argument each.
 
@@ -97,7 +97,7 @@ argument, which by convention we call `self`.
 ```Python
 result = (lambda self, *, ifTrue=None, ifFalse=None: (ifFalse, ifTrue)[bool(self)])(
 a > b,
-    ifTrue='greater,
+    ifTrue='greater',
     ifFalse='not greater',
 )
 ```
@@ -128,8 +128,7 @@ def anon_1():
 def anon_2():
     print('not greater')
 
-my_if(
-a > b,
+my_if(a > b,
     ifTrue=anon_1,
     ifFalse=anon_2,
 )
@@ -138,15 +137,80 @@ a > b,
 But these functions are passed by name, so they're not really anonymous, are they?
 The code is also not inside the control "statement" anymore, so it's kind of harder to read.
 
+You could implement `iftrue:` as a decorator instead,
+```Python
+>>> iftrue = lambda b: lambda f: f() if b else None
+>>> @iftrue(10 > 5)
+... def result():
+...     print("greater")
+...     return "greater"
+greater
+>>> result
+'greater'
+```
+but how do you pass in a second function for `iftrue:iffalse`?
+You actually can do this with decorators, you just need to decorate two functions.
+But decorators only accept one function, right? Just combine them with a class and decorate that.
+You don't even need an instance:
+```Python
+>>> decr_if = lambda b: lambda c: c.iftrue() if b else c.iffalse()
+>>> @decr_if(10 > 5)
+... class result:
+...     def iftrue():
+...         print("greater")
+...         return "greater"
+...     def iffalse():
+...         print("not greater")
+...         return "not greater"
+greater
+>>> result
+'greater'
+```
+Decorators are pretty useful.
+You could easily implement the 3-way if like this. But how would you implement a switch/case
+with decorators? Not so easy, is it?
+
 Python does have anonymous inline functions though, with `lambda`.
 ```Python
-my_if(
-a > b,
+my_if(a > b,
     ifTrue=lambda: print('greater'),
     ifFalse=lambda: print('not greater'),
 )
 ```
-Unfortunately, lambdas in Python can't contain statements, so they can't work as general code bocks.
+Much prettier. Too bad `lambda` can't have multiple expressions, or this might actually work.
+Or can it?
+
+What if you had an expression that contained multiple expressions,
+and executed them one-by-one in order?
+You do. It's a tuple literal. Think of the commas as semicolons and you get the idea.
+
+What if you just want to `return` the value of the last expression,
+instead of a tuple of all of them?
+Declare a tuple and immediately index it `(...)[-1]`?
+The included `do` function does exactly this, and also doesn't crash if its args tuple is empty.
+
+```Python
+>>> my_if(10 > 5,
+...     ifTrue=lambda: do(
+...         print('greater'),
+...         'greater',
+...     ),
+...     ifFalse=lambda: do(
+...         print('not greater'),
+...         'not greater',
+...     ),
+... )
+greater
+'greater'
+```
+It's no worse than the decorator version in terms of length, but this version is an expression.
+That means you can put the whole thing in a function call or a lambda body and it still works,
+unlike the decorator version, which is made of statements. You could also take an arbitrary
+number of lambdas using a `*args` parameter to make more complex control structures like a
+switch/case. This is much more difficult with decorators.
+
+Unfortunately, lambdas in Python can't contain statements,
+so even with `do` they can't work as general code bocks.
 Or can they?
 
 With drython's statement module, they can.
@@ -156,20 +220,8 @@ Python statement that isn't already an expression.
 They work in lambdas.
 They work in `eval()`.
 They're pretty handy in drython's executable data structures,
-which therefore don't require statement code.
+which therefore don't need to handle statement code.
 This makes them a lot simpler than AST, and therefore easier to use.
-
-Too bad `lambda` can't have multiple expressions, or this might actually work.
-Or can it?
-
-What if you had an expression that contained multiple expressions,
-and executed them one-by-one in order?
-You do. It's a tuple literal. Think of the commas as semicolons and you get the idea.
-
-What if you just want to `return` the value of the last "statement",
-instead of a tuple of all of them?
-Declare a tuple and immediately index it `(...)[-1]`?
-The included `progn` function does exactly this, and also doesn't crash if its args tuple is empty.
 
 Ready to write that three-way if?
 
@@ -180,7 +232,7 @@ Ready for the next step?
 
 ## s-expressions ##
 
-Tired of writing `lambda ...: let(lambda:progn(...,Return()))` when you just needed an anonymous
+Tired of writing `lambda ...: let(lambda:do(...,Return()))` when you just needed an anonymous
 function?
 That sure sounds like a boilerplate code problem.
 You need better abstractions again.
@@ -189,8 +241,8 @@ Wouldn't it be easier if you could write functions that get their arguments unev
 Then you wouldn't need to wrap everything in lambdas.
 Lisp can do it with macros. Python can do it too, with drython.
 
-An S-expression is an abstracted function *call*.
-You create an S-expression instance with a function and its arguments.
+An s-expression is an abstracted function *call*.
+You create an s-expression instance with a function and its arguments.
 
 ```Python
 S(print, "Hello,", "World!")
@@ -198,11 +250,11 @@ S(print, "Hello,", "World!")
 
 But the call doesn't happen until you invoke its `s_eval()` method,
 at which point it calls `s_eval()` on all its s-evaluable arguments
-(typically nested S-expressions), and then applies the function to the results.
+(typically nested s-expressions), and then applies the function to the results.
 
 With this recursive evaluation and the statement replacements from the statement module,
-it is possible to write entire programs as nested S-expressions.
-Think of S-expressions as a simpler kind of abstract syntax trees.
+it is possible to write entire programs as nested s-expressions.
+Think of s-expressions as a simpler kind of abstract syntax trees.
 
 ```Python
 >>> S(print, S("Hello,".upper), S("World!".lower)).s_eval({})
@@ -210,8 +262,8 @@ HELLO, world!
 ```
 
 Note the dictionary in the `s_eval` call.
-S-expressions have their own scope for delayed evaluation of `Symbol`s.
-For a module-level S-expression, you might want to pass in the `globals()`,
+s-expressions have their own scope for delayed evaluation of `Symbol`s.
+For a module-level s-expression, you might want to pass in the `globals()`,
 which will make them available as the equivalent symbol.
 ```Python
 >>> spam = 7
@@ -222,7 +274,7 @@ which will make them available as the equivalent symbol.
 42
 ```
 
-You can also use an S-expression as a kind of lambda. Calling one directly will call `s_eval` with
+You can also use an s-expression as a kind of lambda. Calling one directly will call `s_eval` with
 the kwargs dict.
 
 ```Python
@@ -230,7 +282,7 @@ the kwargs dict.
 1:2:3
 ```
 
-If the S-expression's function is a *macro*,
+If the s-expression's function is a *macro*,
 then it gets any s-evaluable arguments unevaluated,
 and returns (typically) an s-evaluable for evaluation.
 In other words, macros can re-write code.
@@ -246,9 +298,9 @@ def If(boolean, then, Else=None):
                  boolean)))
 ```
 
-The above macro rewrites the code into an S-expression that indexes a pair (2-tuple)
+The above macro rewrites the code into an s-expression that indexes a pair (2-tuple)
 using the test part coerced into a boolean,
-(remember `True == 1` and `False == 0` in Python) and then `s_eval`s the selected S-expression.
+(remember `True == 1` and `False == 0` in Python) and then `s_eval`s the selected s-expression.
 
 S-expression macros are a very powerful metaprogramming technique.
 Especially powerful once you start using macros to write macros.
@@ -282,10 +334,10 @@ See the `ifte` combinator in the `stack` module's companion `combinators` module
 
 Stack programs are interoperable with ordinary Python programs.
 
-The `do` combinator can execute any Python function using arguments from the stack.
+The `call` combinator can execute any Python function using arguments from the stack.
 
     Python
-    >>> Stack([1,2,3],dict(sep='::'),print,do)
+    >>> Stack([1,2,3],dict(sep='::'),print,call)
     1::2::3
     Stack(None,)
 

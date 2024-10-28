@@ -21,7 +21,7 @@ from itertools import chain
 from drython.statement import Print
 from drython.core import partition, identity, entuple, SEvaluable, interleave, apply
 from drython.s_expression import S, macro, s_eval_in_scope, flatten_sexpr, gensym, Symbol
-from drython.statement import Elif, progn, Raise
+from drython.statement import Elif, do, Raise
 
 __test__ = {}
 
@@ -163,7 +163,7 @@ class SLambda(SEvaluable):
                 for k, v in func(*args, **kwargs).items():
                     if v != _sentinel:
                         bindings[k] = v
-                return S(progn, *body).s_eval(Scope(scope, bindings))
+                return S(do, *body).s_eval(Scope(scope, bindings))
 
             return Lambda
 
@@ -201,7 +201,7 @@ def mac(required, optional, star, stars, *body):
 
 @macro
 def defn(name, required, optional, star, stars, *body):
-    return S(progn,
+    return S(do,
              S(setq, name, S(fn, required, optional, star, stars,
                              *body)),
              name, )
@@ -209,7 +209,7 @@ def defn(name, required, optional, star, stars, *body):
 
 @macro
 def defmac(name, required, optional, star, stars, *body):
-    return S(progn,
+    return S(do,
              S(setq, name, S(mac, required, optional, star, stars,
                              *body)),
              name, )
@@ -225,7 +225,7 @@ def let_n(pairs, *body):
     ...   S(entuple, S.a, S.b))()
     (1, 2)
     """
-    return S(S(L0, S(setq, *pairs), S(progn, *body)))
+    return S(S(L0, S(setq, *pairs), S(do, *body)))
 
 
 @macro
@@ -238,7 +238,7 @@ def let1(symbol, value, *body):
     ...   S(Print, S.a))()
     2
     """
-    return S(S(L1, symbol, S(progn, *body)), value)
+    return S(S(L1, symbol, S(do, *body)), value)
 
 
 # S(defmacro, S.defmacro_g_, (), (),
@@ -265,7 +265,7 @@ class SLambda0(SEvaluable):
 @macro
 def L0(*body):
     """ 0-argument lambda, simple and fast. New scope, but no binding. """
-    return SLambda0(S(progn, *body))
+    return SLambda0(S(do, *body))
 
 
 class SLambda1(SEvaluable):
@@ -284,7 +284,7 @@ class SLambda1(SEvaluable):
 @macro
 def L1(symbol, *body):
     """ 1-argument lambda, simple and fast. """
-    return SLambda1(symbol, S(progn, *body))
+    return SLambda1(symbol, S(do, *body))
 
 
 class SLambda2(SEvaluable):
@@ -304,7 +304,7 @@ class SLambda2(SEvaluable):
 @macro
 def L2(x, y, *body):
     """ 2-argument lambda; a simple and fast binary operator. """
-    return SLambda2(x, y, S(progn, *body))
+    return SLambda2(x, y, S(do, *body))
 
 
 class SLambdaA(SEvaluable):
@@ -322,7 +322,7 @@ class SLambdaA(SEvaluable):
 # noinspection PyPep8Naming
 @macro
 def La(args, *body):
-    return SLambdaA(args, S(progn, *body))
+    return SLambdaA(args, S(do, *body))
 
 # # symbols, vargs, kwonly, kwvargs
 # # noinspection PyPep8Naming
@@ -338,7 +338,7 @@ def La(args, *body):
 #     24
 #     """
 #     # TODO: test varg, kwonlys, kwvarg, defaults
-#     return SLambda(symbols, S(progn, *body), varg, kwonlys, kwvarg, defaults)
+#     return SLambda(symbols, S(do, *body), varg, kwonlys, kwvarg, defaults)
 
 
 
@@ -365,8 +365,8 @@ S(defmac, S.defmac_g_, (S.name, S.required, S.optional, S.star, S.stars), (), S.
 defmac_g_.__doc__ = """\
 defines a macro with automatic gensyms for symbols starting with g_
 
->>> expensive_get_number = lambda: progn(Print("spam"),14)
->>> S(progn,
+>>> expensive_get_number = lambda: do(Print("spam"),14)
+>>> S(do,
 ...   S(defmac, S.triple_1, [S.n],[],0,0,
 ...   +S(sum,S(entuple,~S.n,~S.n,~S.n))),
 ...   S(S.triple_1, S(S.expensive_get_number))).s_eval(globals())
@@ -374,10 +374,10 @@ spam
 spam
 spam
 42
->>> S(progn,
+>>> S(do,
 ...   S(defmac_g_, S.triple_2, [S.n],[],0,0,
 ...     S(Raise,S(Exception,S(repr,S(scope)))),
-...     +S(progn,
+...     +S(do,
 ...        S(setq, ~S.g_n, ~S.n),
 ...        S(sum,S(entuple,~S.g_n,~S.g_n,~S.g_n)))),
 ...   S(S.triple_2, S(S.expensive_get_number))).s_eval(globals())
@@ -392,7 +392,7 @@ spam
 #
 # You can avoid this with a gensym:
 #
-# => (defmacro/g! triple-2 [n] `(do (setv ~g!n ~n) (+ ~g!n ~g!n ~g!n)))
+# => (defmacro/g! triple-2 [n] `(call (setv ~g!n ~n) (+ ~g!n ~g!n ~g!n)))
 # => (triple-2 (expensive-get-number))  ; avoid repeats with a gensym
 # spam
 # 42

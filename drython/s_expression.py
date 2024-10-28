@@ -91,7 +91,7 @@ def unquote(item):
     unquote works on S-expressions and Symbols, in any position in a quasiquoted form.
     >>> from drython.macros import *
     >>> from operator import add
-    >>> sexp = S(progn,
+    >>> sexp = S(do,
     ...          S(setq,
     ...            S.foo,Print,
     ...            S.x,1,
@@ -143,7 +143,7 @@ def unquote_splice(item):
     generally works on iterables.
     >>> from drython.macros import *
     >>> args = (1,2,3)
-    >>> sexp = S(progn,+S(Print, 0.0, -S.args, 4.4)).s_eval(globals())
+    >>> sexp = S(do,+S(Print, 0.0, -S.args, 4.4)).s_eval(globals())
     >>> sexp
     S(<built-in function print>,
       0.0,
@@ -155,22 +155,22 @@ def unquote_splice(item):
     0.0 1 2 3 4.4
 
     also works on quoted S-expressions, keyword args too!
-    >>> S(progn,S(setq,S.x,+S(1,2,3,sep=':')),
+    >>> S(do,S(setq,S.x,+S(1,2,3,sep=':')),
     ...   +S(Print, 0.0, -S.x, -S(entuple, 44,55), 6.6, end='$\n'))()()
     0.0:1:2:3:44:55:6.6$
 
     this is because an S-expression is a Mapping.
     int keys are the args, str keys are the kwargs.
-    >>> S(progn,
+    >>> S(do,
     ...   S(setq,S.x,{0:1,1:2,'end':'$\n'}, S.sep, ':'),  # store a dict in variable S.x
     ...   +S(-+S(Print,0),  # quote to use sexpr as mapping and unquote_splice it
     ...      -+S(sep=~S.sep),  # kwargs don't have to be at the end.
     ...      -S.x,  # evaluates to the dict
-    ... ))()()  # eval the progn, then the progn's result
+    ... ))()()  # eval the do, then the do's result
     0:1:2$
 
     double unquoting
-    >>> S(progn,+S(Print,11,-+S(0,0,  1,42,  sep=~~S(add,':',':')),33))()()
+    >>> S(do,+S(Print,11,-+S(0,0,  1,42,  sep=~~S(add,':',':')),33))()()
     11::0::42::33
     """
     return UnquoteSplice(item)
