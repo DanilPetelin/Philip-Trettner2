@@ -392,7 +392,7 @@ spam
 #
 # You can avoid this with a gensym:
 #
-# => (defmacro/g! triple-2 [n] `(call (setv ~g!n ~n) (+ ~g!n ~g!n ~g!n)))
+# => (defmacro/g! triple-2 [n] `(do (setv ~g!n ~n) (+ ~g!n ~g!n ~g!n)))
 # => (triple-2 (expensive-get-number))  ; avoid repeats with a gensym
 # spam
 # 42

@@ -334,10 +334,10 @@ See the `ifte` combinator in the `stack` module's companion `combinators` module
 
 Stack programs are interoperable with ordinary Python programs.
 
-The `call` combinator can execute any Python function using arguments from the stack.
+The `run` combinator can execute any Python function using arguments from the stack.
 
     Python
-    >>> Stack([1,2,3],dict(sep='::'),print,call)
+    >>> Stack([1,2,3],dict(sep='::'),print,run)
     1::2::3
     Stack(None,)
 
