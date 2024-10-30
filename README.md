@@ -1,8 +1,8 @@
-# Drython #
-**Or, Don't-repeat-yourself Python**
+# DRYthon #
+**Don't-Repeat-Yourself Python**
 
-Drython is a metaprogramming library for Python.
-Metaprogramming is writing programs that write programs---a
+DRYthon is a metaprogramming library for Python.
+Metaprogramming is writing programs that write programs--a
 powerful technique for *abstracting* away repetitive code.
 
 Programmers make abstractions constantly. Functions are abstractions. Classes are abstractions.
@@ -10,8 +10,6 @@ But sometimes it's not enough.
 If you find yourself writing boilerplate "design patterns" again and again,
 then you're not using powerful enough abstractions.
 You need metaprogramming.
-Don't repeat yourself.
-Drython can help.
 
 ## Metaprogramming ##
 
@@ -41,28 +39,29 @@ Compiling text is also rather slow.
 Alternatives to text manipulation include manipulation of Python bytecodes
 (not for the faint of heart),
 and manipulation of abstract syntax trees using the `ast` module, which is arcane, but usable:
-
-    import ast
-    print(ast.dump(ast.parse('''print("Hello, World!")''')))
-    # Module(body=[Expr(value=Call(func=Name(id='print', ctx=Load()), args=[Str(s='Hello, World!')], keywords=[], starargs=None, kwargs=None))])
-
+```Python
+>>> import ast
+>>> print(ast.dump(ast.parse(r'''print("Hello, World!")''')))
+Module(body=[Expr(value=Call(func=Name(id='print', ctx=Load()), args=[Str(s='Hello, World!')], keywords=[], starargs=None, kwargs=None))])
+```
 Reading AST is easier than writing it (malformed AST can segfault CPython),
 but if it took that much for a simple `print('Hello, World!')`,
 you can imagine it gets complex fast.
 Unfortunately, bytecode and abstract syntax trees are implementation details subject to change
 between Python versions and implementations.
 
-There's an easier way. Drython provides *executable* data structures that are both simpler than AST,
+There's an easier way. DRYthon provides *executable* data structures that are both simpler than AST,
 and are easier to work with than text.
-Drython specifically avoids using ast and bytecode manipulation,
+DRYthon specifically avoids using ast and bytecode manipulation,
 so it's portable across implementations, including CPython2.7/3.1+, PyPy, Jython, and IronPython.
 
-## Drython's statement module ##
+## DRYthon's statement module ##
 
 Can you re-implement a simple if-statement in Python?
 I mean without writing a text compiler or interpreter, or modifying Python itself?
 Sure, you don't have to, Python has a perfectly good if-statement already, but can you?
-A DSL might need a three-way numeric if-statement (-/+/0), or something like a switch/case.
+
+A DSL might need a three-way numeric if statement (-/+/0), or something like a switch/case.
 Yes, you can use the boilerplate cascading-elif pattern instead
 for any of your complex branching needs, but that's not an abstraction, is it?
 You have to re-write the logic imitating the switch/case (or what-have-you)
@@ -85,7 +84,7 @@ The `a > b` part evaluates to either true or false, just like Python.
 The `[]` isn't a list; it's a **code block**.
 The true boolean has an `iftrue:iffalse:` method that always executes the then-block,
 but false has a different method *with the same name* that only executes the else-block.
-Is that cool or what? Yes, `iftrue:iffasle` is one method, not two, an interesting quirk of Smalltalk is that
+Is that cool or what? Yes, `iftrue:iffasle:` is one method, not two. An interesting quirk of Smalltalk is that
 the arguments can go inside of the method name. There are also completely separate `iftrue:` and
 `iffalse:` methods that take one argument each.
 
@@ -95,7 +94,7 @@ argument, which by convention we call `self`.
 
 
 ```Python
-result = (lambda self, *, ifTrue=None, ifFalse=None: (ifFalse, ifTrue)[bool(self)])(
+result = (lambda self, *, ifTrue=None, ifFalse=None: ifTrue if self else ifFalse)(
 a > b,
     ifTrue='greater',
     ifFalse='not greater',
@@ -105,7 +104,7 @@ a > b,
 But there's a problem. This only works on values. What if we want effects?
 
 ```Python
-(lambda self, *, ifTrue=None, ifFalse=None: (ifFalse, ifTrue)[bool(self)])(
+(lambda self, *, ifTrue=None, ifFalse=None: ifTrue if self else ifFalse)(
 a > b,
     ifTrue=print('greater'),
     ifFalse=print('not greater'),
@@ -120,7 +119,7 @@ Actually, a code block is just an anonymous function.
 Python could do something similar with `def`.
 
 ```Python
-my_if = lambda self, *, ifTrue=None, ifFalse=None: (ifFalse, ifTrue)[bool(self)]()  # note the ()
+my_if = lambda self, *, ifTrue=None, ifFalse=None: (ifTrue if self else ifFalse)()
 
 def anon_1():
     print('greater')
@@ -148,8 +147,8 @@ greater
 >>> result
 'greater'
 ```
-but how do you pass in a second function for `iftrue:iffalse`?
-You actually can do this with decorators, you just need to decorate two functions.
+but how do you pass in a second function for `iftrue:iffalse:`? Not possible?
+You actually *can* do this with decorators, you just need to decorate two functions.
 But decorators only accept one function, right? Just combine them with a class and decorate that.
 You don't even need an instance:
 ```Python
@@ -167,10 +166,11 @@ greater
 'greater'
 ```
 Decorators are pretty useful.
-You could easily implement the 3-way if like this. But how would you implement a switch/case
-with decorators? Not so easy, is it?
+You could easily implement the 3-way if like this.
+But how would you implement a control strucure that takes an arbitrary number of blocks,
+like switch/case with decorators? Not so easy, is it?
 
-Python does have anonymous inline functions though, with `lambda`.
+We need real inline anonymous functions. Python does have those though, with `lambda`.
 ```Python
 my_if(a > b,
     ifTrue=lambda: print('greater'),
@@ -187,7 +187,7 @@ You do. It's a tuple literal. Think of the commas as semicolons and you get the 
 What if you just want to `return` the value of the last expression,
 instead of a tuple of all of them?
 Declare a tuple and immediately index it `(...)[-1]`?
-The included `do` function does exactly this, and also doesn't crash if its args tuple is empty.
+The included `do` function does exactly this, and also doesn't crash if its `args` tuple is empty.
 
 ```Python
 >>> my_if(10 > 5,
@@ -205,21 +205,22 @@ greater
 ```
 It's no worse than the decorator version in terms of length, but this version is an expression.
 That means you can put the whole thing in a function call or a lambda body and it still works,
-unlike the decorator version, which is made of statements. You could also take an arbitrary
-number of lambdas using a `*args` parameter to make more complex control structures like a
-switch/case. This is much more difficult with decorators.
+unlike the decorator version, which is made of statements.
+
+You could also take an arbitrary number of lambdas using a `*args` parameter to make more complex
+control structures like a switch/case. This is much more difficult with decorators.
 
 Unfortunately, lambdas in Python can't contain statements,
 so even with `do` they can't work as general code bocks.
 Or can they?
 
-With drython's statement module, they can.
+With DRYthon's statement module, they can.
 
 The statement module contains expression substitutes for every
 Python statement that isn't already an expression.
 They work in lambdas.
 They work in `eval()`.
-They're pretty handy in drython's executable data structures,
+They're pretty handy in DRYthon's executable data structures,
 which therefore don't need to handle statement code.
 This makes them a lot simpler than AST, and therefore easier to use.
 
@@ -239,7 +240,7 @@ You need better abstractions again.
 
 Wouldn't it be easier if you could write functions that get their arguments unevaluated?
 Then you wouldn't need to wrap everything in lambdas.
-Lisp can do it with macros. Python can do it too, with drython.
+Lisp can do it with macros. Python can do it too, with DRYthon.
 
 An s-expression is an abstracted function *call*.
 You create an s-expression instance with a function and its arguments.

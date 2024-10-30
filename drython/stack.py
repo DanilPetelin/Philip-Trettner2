@@ -81,7 +81,7 @@ class Stack(object):
 
         Because Stack is implemented as a linked list, the new stack
         can (and does) share its tail with the original. Unlike
-        strings, Pushing to a long stack doesn't double the memory
+        strings, pushing to a long stack doesn't double the memory
         required, it just adds a link.
 
         >>> spam = Stack()
