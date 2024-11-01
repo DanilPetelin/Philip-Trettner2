@@ -142,13 +142,11 @@ class SLambda(SEvaluable):
             assert len(optional) % 2 == 0
             pairs = tuple(partition(optional))
             keys, defaults = zip(*pairs) if pairs else ((), ())
-            # # no gensyms in eval, so ban word.
-            # assert 'locals' not in frozenset(required) | frozenset(keys) | {star, stars}
             defaults = S(entuple, *defaults).s_eval(scope)
 
             _sentinel = object()
             func = eval(
-                'lambda {0}:locals()'.format(
+                'lambda {0}:__builtins__.locals()'.format(
                     ','.join(
                         ((','.join(required),) if required else ())
                         + ((','.join(
