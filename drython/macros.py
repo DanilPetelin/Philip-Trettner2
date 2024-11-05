@@ -146,14 +146,14 @@ class SLambda(SEvaluable):
 
             _sentinel = object()
             func = eval(
-                'lambda {0}:__builtins__.locals()'.format(
+                '''lambda {0}:__builtins__['locals']()'''.format(
                     ','.join(
                         ((','.join(required),) if required else ())
                         + ((','.join(
                             map('{0}=_'.format, keys)),) if keys else ())
                         + (('*%s' % star,) if star else ())
                         + (('**' + stars,) if stars else ()))),
-                dict(_=_sentinel))
+                dict(_=_sentinel, __builtins__=dict(locals=locals)))
 
             @wraps(func)
             def Lambda(*args, **kwargs):
@@ -541,6 +541,7 @@ def _private():
         """
         >>> spam = "backwards. is sentence This"
         >>> S(thr, spam.replace("backwards", "forwards").split(), S(reversed), S(' '.join))()
+        'This sentence is forwards.'
         """
         # TODO: doctest threading
         if first is _sentinel:
