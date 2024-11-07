@@ -144,26 +144,27 @@ class SLambda(SEvaluable):
             keys, defaults = zip(*pairs) if pairs else ((), ())
             defaults = S(entuple, *defaults).s_eval(scope)
 
+            def Lambda(local):
+                bindings = dict(zip(keys, defaults))
+                for k, v in local.items():
+                    if v != _sentinel:
+                        bindings[k] = v
+                return S(do, *body).s_eval(Scope(scope, bindings))
+
             _sentinel = object()
             func = eval(
-                '''lambda {0}:__builtins__['locals']()'''.format(
+                '''lambda {0}:__builtins__[0](__builtins__[1]())'''.format(
                     ','.join(
                         ((','.join(required),) if required else ())
                         + ((','.join(
                             map('{0}=_'.format, keys)),) if keys else ())
                         + (('*%s' % star,) if star else ())
                         + (('**' + stars,) if stars else ()))),
-                dict(_=_sentinel, __builtins__=dict(locals=locals)))
+                # can't gensym, but __builtins__ should never be used as a parameter name
+                dict(_=_sentinel, __builtins__=(Lambda, locals)))
+            # TODO: set func defaults tuple, or is that an implementation detail?
 
-            @wraps(func)
-            def Lambda(*args, **kwargs):
-                bindings = dict(zip(keys, defaults))
-                for k, v in func(*args, **kwargs).items():
-                    if v != _sentinel:
-                        bindings[k] = v
-                return S(do, *body).s_eval(Scope(scope, bindings))
-
-            return Lambda
+            return func
 
         self._s_eval_helper = _s_eval_helper
 

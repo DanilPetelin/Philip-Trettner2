@@ -41,7 +41,7 @@ else:
     from collections import UserString
 
 from drython.core import Empty, entuple
-from drython.statement import Var, Raise, Print
+from drython.statement import Atom, Raise, Print
 
 # defines an interface used by SExpression, so belongs here, not in macros.py
 def macro(func):
@@ -83,98 +83,6 @@ class Quote(SEvaluable, SQuotable):
         return self.item
 
 
-@macro
-def unquote(item):
-    r"""
-    unquotes an element in a quasiquoted S-expression. Usually written as ~S...
-
-    unquote works on S-expressions and Symbols, in any position in a quasiquoted form.
-    >>> from drython.macros import *
-    >>> from operator import add
-    >>> sexp = S(do,
-    ...          S(setq,
-    ...            S.foo,Print,
-    ...            S.x,1,
-    ...            S.y,':'),
-    ...          +S(~S.foo,
-    ...             ~S.x,
-    ...             42,
-    ...             ~S(add,S.x,2),
-    ...             sep=~S.y,
-    ...             end=~S(add,'$','\n')))()
-    >>> sexp.args  # atoms appear in the same order as written
-    (<built-in function print>, 1, 42, 3)
-    >>> sexp.kwargs == dict(sep=':',end='$\n')  # kwargs also work!
-    True
-    >>> sexp()  # the function position too.
-    1:42:3$
-    """
-    return Unquote(item)
-
-
-class Unquote(SQuotable):
-    PREFIX = '~'
-
-    def __init__(self, item):
-        self.item = item
-
-    def __repr__(self):
-        if isinstance(self.item, SUnquotable):
-            return self.PREFIX + repr(self.item).replace('\n', '\n ')
-        else:
-            return '<{0} {1}>'.format(self.__class__.__name__, repr(self.item))
-
-    def s_unquote(self, scope):
-        return self.item.s_eval(scope)
-
-        # def s_eval(self, scope):
-        #     raise TypeError("Unquote outside of Quasiquote")
-
-
-class UnquoteSplice(Unquote):
-    PREFIX = '-'
-
-
-@macro
-def unquote_splice(item):
-    r"""
-    inserts arguments into a quasiquoted form. Usually written as -S...
-
-    generally works on iterables.
-    >>> from drython.macros import *
-    >>> args = (1,2,3)
-    >>> sexp = S(do,+S(Print, 0.0, -S.args, 4.4)).s_eval(globals())
-    >>> sexp
-    S(<built-in function print>,
-      0.0,
-      1,
-      2,
-      3,
-      4.4)
-    >>> sexp()
-    0.0 1 2 3 4.4
-
-    also works on quoted S-expressions, keyword args too!
-    >>> S(do,S(setq,S.x,+S(1,2,3,sep=':')),
-    ...   +S(Print, 0.0, -S.x, -S(entuple, 44,55), 6.6, end='$\n'))()()
-    0.0:1:2:3:44:55:6.6$
-
-    this is because an S-expression is a Mapping.
-    int keys are the args, str keys are the kwargs.
-    >>> S(do,
-    ...   S(setq,S.x,{0:1,1:2,'end':'$\n'}, S.sep, ':'),  # store a dict in variable S.x
-    ...   +S(-+S(Print,0),  # quote to use sexpr as mapping and unquote_splice it
-    ...      -+S(sep=~S.sep),  # kwargs don't have to be at the end.
-    ...      -S.x,  # evaluates to the dict
-    ... ))()()  # eval the do, then the do's result
-    0:1:2$
-
-    double unquoting
-    >>> S(do,+S(Print,11,-+S(0,0,  1,42,  sep=~~S(add,':',':')),33))()()
-    11::0::42::33
-    """
-    return UnquoteSplice(item)
-
 
 def args_kwargs(data):
     args = []
@@ -189,18 +97,6 @@ def args_kwargs(data):
     if isinstance(data, Mapping):
         kwargs = {k: v for k, v in data.items() if not isinstance(k, int)}
     return args, kwargs
-
-
-def s_unquote_in_scope(element, scope):
-    if isinstance(element, SExpression) and element:
-        if element[0] == unquote:
-            element = element.s_eval(scope)
-        elif element[0] == unquote_splice:
-            element = element.s_eval(scope).s_unquote(scope)
-            return args_kwargs(element)
-    if hasattr(element, 's_unquote'):
-        return (element.s_unquote(scope),), Empty
-    return (element,), Empty
 
 
 # def s_unquote_in_scope(element, scope):
@@ -340,6 +236,8 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
 
     @staticmethod
     def from_mapping(mapping):
+        if isinstance(mapping, SExpression):
+            return mapping
         args, kwargs = args_kwargs(mapping)
         return S(*args, **kwargs)
 
@@ -381,37 +279,211 @@ class SExpression(Mapping, SEvaluable, SUnquotable):
     def __call__(self, **kwargs):
         return self.s_eval(kwargs)
 
-    def s_unquote(self, scope):
-        args = []
-        kwargs = {k: s_unquote_in_scope(v, scope)[0][0] for k, v in self.kwargs.items()}
-        for a in self.args:
-            arg, kwarg = s_unquote_in_scope(a, scope)
-            args.extend(arg)
-            kwargs.update(kwarg)
-        return S(*args, **kwargs)
-
-    # def s_unquote(self, scope):
-    #     return S(
-    #         s_unquote_in_scope(self.func, scope),
-    #         *tuple(s_unquote_in_scope(a, scope) for a in self.args),
-    #         # *tuple(chain(s_unquote_splice_in_scope(a, scope) for a in self.args)),
-    #         **{k: s_unquote_in_scope(v, scope) for k, v in self.kwargs.items()})
-
     def __pos__(self):
         return S(quasiquote, self)
 
+    def uncons(self):
+        """
+        separates the function part from the args part, and returns them as a tuple.
+        >>> S(Print,1,2,3,sep=':').uncons()
+        (<built-in function print>, S(1,
+          2,
+          3,
+          **{'sep': ':'}))
+        """
+        return self.args[0], S(*self.args[1:], **self.kwargs)
 
-class Quasiquote(Quote):
-    def s_eval(self, scope):
-        return self.item.s_unquote(scope)
+    def unkwons(self):
+        """
+        splits off an arbitrary kwarg as a kv-tuple, and returns them as a tuple
+        >>> S(Print,1,2,3,sep=':').unkwons()
+        (('sep', ':'), S(<built-in function print>,
+          1,
+          2,
+          3))
+        """
+        cdr = dict(self.kwargs)
+        car = cdr.popitem()
+        return car, S(*self.args,**cdr)
 
-    def __repr__(self):
-        return '+' + repr(self.item).replace('\n', '\n ')
+
+def concat(*sexprs):
+    return S(*chain.from_iterable(s.args for s in sexprs),
+             **dict(chain.from_iterable(s.kwargs.items() for s in sexprs)))
+
+def cons(func, sexpr):
+    """
+    inserts a function for an argument-only S-expression.
+    Can also build up arguments one-by-one.
+    >>> cons(Print,cons(1,cons(2,None)))
+    S(<built-in function print>,
+      1,
+      2)
+    """
+    if sexpr:
+        return S(func,*sexpr.args,**sexpr.kwargs)
+    return S(func)
+
+def kwons(k, v, sexpr):
+    """
+    inserts a keyword argument into an S-expression.
+    >>> kwons('sep',':',S(Print,1,2))()
+    1:2
+
+    symbols also work.
+    >>> kwons(S.sep,':',S(Print,1,2))()
+    1:2
+
+    remember to quote to prevent early evaluation in S-expressions.
+    >>> S(kwons,+S.sep,':',+S(Print,1,2))()()
+    1:2
+    """
+    d = dict(sexpr)
+    d[k] = v
+    return SExpression.from_mapping(d)
 
 
 @macro
 def quasiquote(sexpr):
-    return Quasiquote(sexpr)
+    r"""
+    Used for code templates, especially in macros.
+
+    Unquote undoes a quasiquote.
+    >>> S(quasiquote, ~S.a)(a=42)
+    42
+
+    quasiquote acts like quote if there's no unquoting
+    >>> S(quasiquote, S.a)()
+    S.a
+
+    used as a template.
+    >>> S(quasiquote, S(Print,1,~S.a,~S.b))(a=2,b=3)
+    S(<built-in function print>,
+      1,
+      2,
+      3)
+    >>> S(quasiquote, S(Print,1,~S.a,~S.b))(a=2,b=3)()
+    1 2 3
+
+    The + acts as a quasiquote on S-expressions.
+    The - is a splicing unquote, for complex macro templates.
+    >>> template = (
+    ...     +S(Print,
+    ...        -+S(1,~S.a,~S.b,sep=':'),  # templates may contain templates.
+    ...        4,
+    ...        -+S(end=~S.end),  # order is irrelevant for kwarg splicing.
+    ...        5)
+    ... )
+    >>> template(a=2,b=3,end='$\n')()
+    1:2:3:4:5$
+    >>> template(a=20,b=30,end='$$\n')()
+    1:20:30:4:5$$
+
+    unquote also works on keyword arguments.
+    >>> S(quasiquote, S(Print,1,2,sep=~S.sep))(sep=':')()
+    1:2
+
+    """
+    if isinstance(sexpr, SExpression) and sexpr:
+        if sexpr.args:
+            car, cdr = sexpr.uncons()
+            # ? `~X ; (quasiquote (unquote X))
+            # -> X
+            if car == unquote:
+                return cdr[0]
+            # ? `(~@(X Y Z) . cdr) ; (quasiquote ((splice-unquote (X Y Z)) . cdr))
+            # -> (X Y Z . `cdr) ; (concat (X Y Z) (quasiquote cdr))
+            if isinstance(car,SExpression) and car[0] == unquote_splice:
+                # todo: support arbitrary maps/iterables
+                return S(concat,car[1],quasiquote(cdr))
+            # ? `(car . cdr) ; (quasiquote (car . cdr))
+            # -> '(`car . `cdr) ; (cons (quasiquote car) (quasiquote cdr))
+            return S(cons, quasiquote(car), quasiquote(cdr))
+        if sexpr.kwargs:
+            (k,v), cdr = sexpr.unkwons()
+            return S(kwons, k, quasiquote(v), quasiquote(cdr))
+    else:
+        # ? `X ; (quasiquote X)
+        # -> 'X ; (quote X)
+        return S(quote, sexpr)
+
+class unquote(object):
+    r"""
+    unquotes an element in a quasiquoted S-expression. Usually written as ~S...
+
+    unquote works on S-expressions and Symbols, in any position in a quasiquoted form.
+    >>> from drython.macros import *
+    >>> from operator import add
+    >>> sexp = S(do,
+    ...          S(setq,
+    ...            S.foo,Print,
+    ...            S.x,1,
+    ...            S.y,':'),
+    ...          +S(~S.foo,
+    ...             ~S.x,
+    ...             42,
+    ...             ~S(add,S.x,2),
+    ...             sep=~S.y,
+    ...             end=~S(add,'$','\n')))()
+    >>> sexp.args  # atoms appear in the same order as written
+    (<built-in function print>, 1, 42, 3)
+    >>> sexp.kwargs == dict(sep=':',end='$\n')  # kwargs also work!
+    True
+    >>> sexp()  # the function position too.
+    1:42:3$
+    """
+    def __init__(self, item):
+        raise TypeError("unquote outside of quasiquote for unquoted %s" % repr(item))
+
+    # @staticmethod
+    # def s_on_unquote(item, scope, level):
+    #     if level == 0:
+    #         return (item,), Empty
+    #     args, kwargs = try_unquote(item, scope, level-1)
+    #     return (S(unquote, ))
+
+
+
+def unquote_splice(item):
+    r"""
+    inserts arguments into a quasiquoted form. Usually written as -S...
+
+    generally works on iterables.
+    >>> from drython.macros import *
+    >>> args = (1,2,3)
+    >>> sexp = S(do,+S(Print, 0.0, -S.args, 4.4)).s_eval(globals())
+    >>> sexp
+    S(<built-in function print>,
+      0.0,
+      1,
+      2,
+      3,
+      4.4)
+    >>> sexp()
+    0.0 1 2 3 4.4
+
+    also works on quoted S-expressions, keyword args too!
+    >>> S(do,S(setq,S.x,+S(1,2,3,sep=':')),
+    ...   +S(Print, 0.0, -S.x, -S(entuple, 44,55), 6.6, end='$\n'))()()
+    0.0:1:2:3:44:55:6.6$
+
+    this is because an S-expression is a Mapping.
+    int keys are the args, str keys are the kwargs.
+    >>> S(do,
+    ...   S(setq,S.x,{0:1,1:2,'end':'$\n'}, S.sep, ':'),  # store a dict in variable S.x
+    ...   +S(-+S(Print,0),  # quote to use sexpr as mapping and unquote_splice it
+    ...      -+S(sep=~S.sep),  # kwargs don't have to be at the end.
+    ...      -S.x,  # evaluates to the dict
+    ... ))()()  # eval the do, then the do's result
+    0:1:2$
+    >>> S(do,+S(Print,11,-+S(0, 42,  sep=~S(add,':',':')),33))()()
+    11::0::42::33
+
+    double unquoting
+    >>> S(do,+S(do,+S(Print, ~~S.items)))(items=(1,2,3))
+    """
+    raise TypeError("unquote splice outside of quasiquote for spliced %s" % repr(item))
+
 
 
 # TODO: doctest unquote/splice
@@ -506,7 +578,7 @@ class Symbol(UserString, str, SEvaluable, SQuotable):
 
 
 def _private():
-    _gensym_counter = Var(0)
+    _gensym_counter = Atom(0)
 
     # noinspection PyGlobalUndefined
     global gensym
