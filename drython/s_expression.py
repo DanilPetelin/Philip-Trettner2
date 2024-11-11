@@ -35,7 +35,9 @@ from keyword import iskeyword
 from operator import add
 from collections import Mapping
 import logging as lg
-lg.basicConfig(level=lg.DEBUG)
+lg.basicConfig(filename='s_expression.py',
+               # level=lg.DEBUG,
+               )
 import sys
 
 import collections
@@ -265,8 +267,11 @@ class SExpression(Mapping, SEvaluable, SQuotable):
     #     return "S(*"+repr(self.args)+", **"+repr(self.kwargs)+")"
     def __repr__(self):
         if len(self.args) == 2 and len(self.kwargs) == 0:
-            if self[0] == quote and isinstance(self[1], SQuotable)\
-                    or self[0] == quasiquote and isinstance(self[1],SExpression):
+            if self[0] == quasiquote and (isinstance(self[1],SExpression) or isinstance(self[1],Symbol)):
+                return '_' + repr(self[1]).replace('\n', '\n ')
+            if self[0] == quote and isinstance(self[1], SQuotable):
+                return '-' + repr(self[1]).replace('\n', '\n ')
+            if self[0] == unquote_splice and isinstance(self[1],SUnquotable):
                 return '+' + repr(self[1]).replace('\n', '\n ')
             if self[0] == unquote and isinstance(self[1], SUnquotable):
                 return '~' + repr(self[1]).replace('\n', '\n ')
@@ -376,30 +381,32 @@ def quasiquote(sexpr):
     >>> S(quasiquote, ~S.a)(a=42)
     42
 
-    quasiquote acts like quote if there's no unquoting
-    >>> S(quasiquote, S.a)()
+    quasiquote can act like quote on s-evaluation
+    >>> _S.a()  # same as S(quasiquote, S.a)()
+    S.a
+    >>> (-S.a)()  # normal quote `-`; same as S(quote, S.a)()
     S.a
 
     used as a template.
-    >>> S(quasiquote, S(Print,1,~S.a,~S.b))(a=2,b=3)
+    >>> _S(Print,1,~S.a,~S.b)(a=2,b=3)
     S(<built-in function print>,
       1,
       2,
       3)
-    >>> S(quasiquote, S(Print,1,~S.a,~S.b))(a=2,b=3)()
+    >>> _S(Print,1,~S.a,~S.b)(a=2,b=3)()
     1 2 3
 
     unquote even works on keyword arguments.
-    >>> S(quasiquote, S(Print,1,2,sep=~S.sep))(sep=':')()
+    >>> _S(Print,1,2,sep=~S.sep)(sep=':')()
     1:2
 
-    The + acts as a quasiquote on S-expressions.
-    The - is a splicing unquote, for complex macro templates.
+    The _S is a quasiquoted S-expression.
+    The + is a splicing unquote, for complex macro templates.
     >>> template = (
     ...     _S(Print,
-    ...        -_S(1,~S.a,~S.b,sep=':'),  # templates may contain templates.
+    ...        +_S(1,~S.a,~S.b,sep=':'),  # templates may contain templates.
     ...        4,
-    ...        -_S(end=~S.end),  # order is irrelevant for kwarg splicing.
+    ...        +_S(end=~S.end),  # order is irrelevant when splicing in kwargs.
     ...        5)
     ... )
     >>> template(a=2,b=3,end='$\n')()
@@ -408,7 +415,7 @@ def quasiquote(sexpr):
     1:20:30:4:5$$
 
     splicing also works on symbols.
-    >>> S(quasiquote, S(Print,_S.args))(args=S(1,2,3,sep=':'))()
+    >>> _S(Print,+S.args)(args=S(1,2,3,sep=':'))()
     1:2:3
     """
     # if isinstance(sexpr, SExpression) and sexpr:
@@ -478,7 +485,7 @@ def qq_expand(x):
         return out
     # must be an atom. Quote it.
     lg.debug("qq_expand found atom <%s>...",x)
-    out = S(quote, S(unquote, x))
+    out = S(quote, x)
     lg.debug("...qq_expand found atom; return:\n%s",out)
     return out
 
@@ -548,7 +555,7 @@ class unquote(object):
 
     unquote works on S-expressions and Symbols, in any position in a quasiquoted form.
     >>> from drython.macros import *
-    >>> from operator import add
+    >>> from drython.s_expression import *
     >>> sexp = S(do,
     ...          S(setq,
     ...            S.foo,Print,
@@ -577,6 +584,7 @@ def unquote_splice(item):
 
     generally works on iterables.
     >>> from drython.macros import *
+    >>> from drython.s_expression import *
     >>> args = (1,2,3)
     >>> sexp = S(do,_S(Print, 0.0, +S.args, 4.4)).s_eval(globals())
     >>> sexp
@@ -598,16 +606,21 @@ def unquote_splice(item):
     int keys are the args, str keys are the kwargs.
     >>> S(do,
     ...   S(setq,S.x,{0:1,1:2,'end':'$\n'}, S.sep, ':'),  # store a dict in variable S.x
-    ...   _S(-_S(Print,0),  # quote to use sexpr as mapping and unquote_splice it
-    ...      -_S(sep=~S.sep),  # kwargs don't have to be at the end.
+    ...   _S(+_S(Print,0),  # quote to use sexpr as mapping and unquote_splice it
+    ...      +_S(sep=~S.sep),  # kwargs don't have to be at the end.
     ...      +S.x,  # evaluates to the dict
     ... ))()()  # eval the do, then the do's result
     0:1:2$
-    >>> S(do,_S(Print,11,-_S(0, 42,  sep=~S(add,':',':')),33))()()
+    >>> S(do,_S(Print,11,+_S(0, 42,  sep=~S(add,':',':')),33))()()
     11::0::42::33
 
     double unquoting
-    >>> S(do,_S(do,_S(Print, ~~S.items)))(items=(1,2,3))
+    >>> S(do,_S(do,_S(Print, ~~S.items)))(items=(1,2,3))()()
+    (1, 2, 3)
+
+    splice unquoted
+    >>> S(do,_S(do,_S(Print, +~S.items)))(items=(1,2,3))()()
+    1 2 3
     """
     raise TypeError("unquote splice outside of quasiquote for spliced %s" % repr(item))
 
@@ -703,6 +716,39 @@ class Symbol(UserString, str, SEvaluable, SQuotable):
                 'Symbol %s is not bound in the given scope' % repr(self)
             ), From=None)
 
+# This is just a stub so the IDE can find it.
+def gensym(prefix=''):
+    """
+    generates a unique Symbol. Gensyms are not valid identifiers,
+    but they are valid dictionary keys.
+
+    A gensym is only unique per import of this module, when the
+    gensym counter is initialized. It should not be relied upon for
+    uniqueness across a network, nor in serialized persistent storage.
+    gensym() locks the counter update for thread safety.
+
+    Python normally only imports a module once and caches the
+    result for any further import attempts, but this can be
+    circumvented.
+
+    gensyms are typically used by macros to avoid conflicts
+    with other symbols in the environment.
+
+    gensyms have an optional prefix for improved error messages
+    and macro debugging. The suffix is the gensym count at creation.
+
+    >>> gensym()
+    Symbol('<#1>')
+    >>> gensym(S.foo)  # foo prefix
+    Symbol('<foo#2>')
+    >>> gensym(S.foo)  # not the same symbol as above
+    Symbol('<foo#3>')
+    >>> gensym('foo')  # strings also work.
+    Symbol('<foo#4>')
+    """
+    raise Exception("called gensym stub instead of the real thing.")
+    # the real thing is in the private closure below.
+
 
 def _private():
     _gensym_counter = Atom(0)
@@ -710,39 +756,12 @@ def _private():
     # noinspection PyGlobalUndefined
     global gensym
 
+    __doc__ = gensym.__doc__
     # noinspection PyRedeclaration,PyUnusedLocal
     def gensym(prefix=''):
-        """
-        generates a unique Symbol. Gensyms are not valid identifiers,
-        but they are valid dictionary keys.
-
-        A gensym is only unique per import of this module, when the
-        gensym counter is initialized. It should not be relied upon for
-        uniqueness across a network, nor in serialized persistent storage.
-        gensym() locks the counter update for thread safety.
-
-        Python normally only imports a module once and caches the
-        result for any further import attempts, but this can be
-        circumvented.
-
-        gensyms are typically used by macros to avoid conflicts
-        with other symbols in the environment.
-
-        gensyms have an optional prefix for improved error messages
-        and macro debugging. The suffix is the gensym count at creation.
-
-        >>> gensym()
-        Symbol('<#1>')
-        >>> gensym(S.foo)  # foo prefix
-        Symbol('<foo#2>')
-        >>> gensym(S.foo)  # not the same symbol as above
-        Symbol('<foo#3>')
-        >>> gensym('foo')  # strings also work.
-        Symbol('<foo#4>')
-        """
-
         return Symbol(
             '<{0}#{1}>'.format(prefix, str(_gensym_counter.set(1, add))))
+    gensym.__doc__ = __doc__ # keeps the docstring for the repl
 
 
 _private()
