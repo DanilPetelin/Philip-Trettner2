@@ -20,7 +20,7 @@ from itertools import chain
 
 from drython.statement import Print
 from drython.core import partition, identity, entuple, SEvaluable, interleave, apply
-from drython.s_expression import S, macro, s_eval_in_scope, flatten_sexpr, gensym, Symbol
+from drython.s_expression import _S, S, macro, s_eval_in_scope, flatten_sexpr, gensym, Symbol
 from drython.statement import Elif, do, Raise
 
 __test__ = {}
@@ -144,26 +144,27 @@ class SLambda(SEvaluable):
             keys, defaults = zip(*pairs) if pairs else ((), ())
             defaults = S(entuple, *defaults).s_eval(scope)
 
+            def Lambda(local):
+                bindings = dict(zip(keys, defaults))
+                for k, v in local.items():
+                    if v != _sentinel:
+                        bindings[k] = v
+                return S(do, *body).s_eval(Scope(scope, bindings))
+
             _sentinel = object()
             func = eval(
-                '''lambda {0}:__builtins__['locals']()'''.format(
+                '''lambda {0}:__builtins__[0](__builtins__[1]())'''.format(
                     ','.join(
                         ((','.join(required),) if required else ())
                         + ((','.join(
                             map('{0}=_'.format, keys)),) if keys else ())
                         + (('*%s' % star,) if star else ())
                         + (('**' + stars,) if stars else ()))),
-                dict(_=_sentinel, __builtins__=dict(locals=locals)))
+                # can't gensym, but __builtins__ should never be used as a parameter name
+                dict(_=_sentinel, __builtins__=(Lambda, locals)))
+            # TODO: set func defaults tuple, or is that an implementation detail?
 
-            @wraps(func)
-            def Lambda(*args, **kwargs):
-                bindings = dict(zip(keys, defaults))
-                for k, v in func(*args, **kwargs).items():
-                    if v != _sentinel:
-                        bindings[k] = v
-                return S(do, *body).s_eval(Scope(scope, bindings))
-
-            return Lambda
+            return func
 
         self._s_eval_helper = _s_eval_helper
 
@@ -352,21 +353,21 @@ S(defmac, S.defmac_g_, (S.name, S.required, S.optional, S.star, S.stars), (), S.
                       #     S(S(dot,S.x,S.startswith), 'g_'))),
                       # flatten_sexpr is only for sexpr, not tuples, so make one w/apply.
                       S(flatten_sexpr, S(apply, S, star=S.body)))),
-    +S(defmac, ~S.name, ~S.required, ~S.optional, ~S.star, ~S.stars,
+    _S(defmac, ~S.name, ~S.required, ~S.optional, ~S.star, ~S.stars,
        ~S(Print, S.syms),
        S(let_n, ~S(tuple, S(chain.from_iterable, S(map,
                                                    lambda x: (x, gensym(x)),
                                                    # S(L1, S.x,
                                                    #   S(entuple, S.x, S(gensym, S.x.data))),
                                                    S.syms))),
-         -S.body, )))).s_eval(globals())
+         +S.body, )))).s_eval(globals())
 defmac_g_.__doc__ = """\
 defines a macro with automatic gensyms for symbols starting with g_
 
 >>> expensive_get_number = lambda: do(Print("spam"),14)
 >>> S(do,
 ...   S(defmac, S.triple_1, [S.n],[],0,0,
-...   +S(sum,S(entuple,~S.n,~S.n,~S.n))),
+...   _S(sum,S(entuple,~S.n,~S.n,~S.n))),
 ...   S(S.triple_1, S(S.expensive_get_number))).s_eval(globals())
 spam
 spam
@@ -375,7 +376,7 @@ spam
 >>> S(do,
 ...   S(defmac_g_, S.triple_2, [S.n],[],0,0,
 ...     S(Raise,S(Exception,S(repr,S(scope)))),
-...     +S(do,
+...     _S(do,
 ...        S(setq, ~S.g_n, ~S.n),
 ...        S(sum,S(entuple,~S.g_n,~S.g_n,~S.g_n)))),
 ...   S(S.triple_2, S(S.expensive_get_number))).s_eval(globals())

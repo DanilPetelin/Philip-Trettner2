@@ -26,7 +26,7 @@ Typical module import is:
     from drython.statement import *
 
 This includes
-`Var` (thread-locked nonlocal assignment emulation),
+`Atom` (thread-locked nonlocal assignment emulation),
 `let` (local assignment emulation and Return() support),
 `do` (for side effects in expressions, especially lambdas),
 plus the 13 keyword statement replacements.
@@ -47,7 +47,7 @@ even if they already used print statements, or else a long invocation
 like `getattr(__builtin__, 'print')`.
 
 Due to optimizations for Python locals, direct local and nonlocal
-assignment statements cannot be emulated as functions, but Var can
+assignment statements cannot be emulated as functions, but Atom can
 substitute for nonlocals in many cases. For the same reason, direct
 local and nonlocal `del` statements are not supported, but `del` is
 partially supported with delitem from drython.core. (delattr() is
@@ -55,10 +55,10 @@ already a builtin)
 
 The augmented assignment statements, += -= *= /= %= &= |= ^= <<= >>= **=
 //=, are partially supported with the operator module combined with
-Var.set() and assign_attr()/assign_item() from core.
+Atom.set() and assign_attr()/assign_item() from core.
 
 Assignment statements, =, are partially supported with let(), and by
-using Var.set() or assign_attr()/assign_item(), without the optional
+using Atom.set() or assign_attr()/assign_item(), without the optional
 operator.
 
 Use the metaclass directly to substitute for `class`, for example
@@ -624,13 +624,13 @@ def Try(thunk, *Except, **ElseFinally):
     return res
 
 
-class Var(object):
+class Atom(object):
     """
     a locked boxed mutable variable, assignable in expressions.
 
-    >>> spam = Var('eggs')  # initial value (required)
+    >>> spam = Atom('eggs')  # initial value (required)
     >>> spam
-    Var('eggs')
+    Atom('eggs')
 
     unbox with .e (element) attr
     >>> spam.e
@@ -659,7 +659,7 @@ class Var(object):
 
         def var_set(new, oper=None):
             """
-            sets Var's element. Optionally augment assignments with oper.
+            sets Atom's element. Optionally augment assignments with oper.
             set() is locked for thread safety, however direct access to
             .e is not locked, so foo.set(1, operator.add) is an atomic
             increment, but foo.set(foo.e + 1) is not.
@@ -671,7 +671,7 @@ class Var(object):
             # since race conditions are impossible to test properly.
             # The only testing alternative is mathematical proof.
             # Best keep this block as simple as possible.
-            # Var is a useful alternative to primitive locks
+            # Atom is a useful alternative to primitive locks
             # in many cases.
             with lock:
                 if oper:
@@ -690,10 +690,10 @@ class Var(object):
 
     @e.setter
     def e(self, new):
-        raise AttributeError("Use .set() to assign to a Var, not .e = ...")
+        raise AttributeError("Use .set() to assign to a Atom, not .e = ...")
 
     def __repr__(self):
-        return 'Var(%s)' % repr(self.e)
+        return 'Atom(%s)' % repr(self.e)
 
 
 # noinspection PyPep8Naming
@@ -706,7 +706,7 @@ def While(predicate, body, label=None, Else=Pass):
     #    spam += -1
     #    print(spam)
     >>> from operator import add
-    >>> spam = Var(4)
+    >>> spam = Atom(4)
     >>> While(lambda: spam.e, lambda:
     ...     Print(spam.set(-1,add)))
     3
