@@ -23,10 +23,10 @@ from drython.statement import Print
 
 from itertools import permutations
 import collections
+import operator
 
 from drython.core import enlist
-from drython.stack import Combinator, defcombinator, Stack
-
+from drython.stack import Combinator, Phrase, Stack
 
 _exclude_from__all__ = set(globals().keys())
 
@@ -73,6 +73,7 @@ def swap(stack):
     stack, a, b = stack.pop(2)
     return stack.push(b, a)
 
+
 # creates all depth-3 stack permutation functions
 for _cs in permutations('abc'):
     if _cs[0] == 'a':
@@ -94,7 +95,6 @@ def {0}(stack):
 # noinspection PyUnboundLocalVariable
 del _cs
 
-
 # creates all depth-4 stack permutation functions
 for _cs in permutations('abcd'):
     if _cs[0] == 'a':
@@ -114,7 +114,7 @@ def {0}(stack):
 del _cs
 
 
-# popd = defcombinator((pop,), dip)
+# @Phrase((pop,), dip)
 @Combinator
 def popd(stack):
     """
@@ -126,7 +126,7 @@ def popd(stack):
     return stack.push(b)
 
 
-# dupd = defcombinator((dup,), dip)
+# @Phrase((dup,), dip)
 @Combinator
 def dupd(stack):
     """
@@ -164,39 +164,33 @@ def choice(stack):
     return stack.push(t if b else f)
 
 
+@Phrase(1, quote)
+def un(): """unary quote"""
+
+
+@Phrase(2, quote)
+def bi(): """binary quote"""
+
+
+@Phrase(3, quote)
+def tri(): """ternary quote"""
+
+
+@Phrase(dupd, bi, list.append, pop)
+def et(): """append to list"""
+
+
+@Phrase(bi, operator.add)
+def plus(): """binary addition"""
+
+
+@Phrase(bi, operator.mul)
+def times(): """binary multiplication"""
+
+
 # ##
 # Quotation Combinators
 # ##
-
-@Combinator
-def run(stack):
-    """
-    The run combinator applies an ordinary Python function to a
-    list of arguments.
-
-    (The Print function returns None)
-    >>> Stack([1,2,3],Print,run)
-    1 2 3
-    Stack(None,)
-
-    Keywords are also supported with a dictionary
-    >>> Stack([1,2,3],dict(sep=':'),Print,run)
-    1:2:3
-    Stack(None,)
-
-    Use an empty list for no arguments
-    >>> Stack([],dict,run)
-    Stack({},)
-
-    Any non-Mapping iterable will do for the arguments list.
-    Any Mapping will do for the keywords dictionary
-    """
-    stack, kwargs, func = stack.pop(2)
-    if isinstance(kwargs, collections.Mapping):
-        stack, args = stack.pop()
-        return stack.push(func(*args, **kwargs))
-    return stack.push(func(*kwargs))  # kwargs was just args
-
 
 @Combinator
 def dip(stack):
@@ -222,8 +216,7 @@ def Ic(stack):
     """
     the I combinator. Unquotes the iterable by pushing its elements.
     >>> from operator import add
-    >>> from drython.stack import op
-    >>> Stack([1,2,op(add)], Ic)
+    >>> Stack([1,2,plus], Ic)
     Stack(3,)
     """
     stack, x = stack.pop()
@@ -258,9 +251,11 @@ def Tc(stack):
     return stack.push(q, *p)
 
 
-Cc = defcombinator([swap], dip, Ic)
+@Phrase([swap], dip, Ic)
+def Cc(): pass
 
-# Kc = defcombinator([pop], dip, Ic)
+
+# @Phrase([pop], dip, Ic)
 # noinspection PyPep8Naming
 @Combinator
 def Kc(stack):
@@ -268,7 +263,8 @@ def Kc(stack):
     return stack.push(*q)
 
 
-Wc = defcombinator([dup], dip, Ic)
+@Phrase([dup], dip, Ic)
+def Wc(): pass
 
 
 # noinspection PyPep8Naming
@@ -316,27 +312,19 @@ def ifte(stack):
     """
     the if-then-else combinator
     >>> from operator import lt
-    >>> from drython.stack import op
-    >>> Stack([1,2,op(lt)],
-    ...       [['was true'],Print,run],
-    ...       [["wasn't"],Print,run], ifte)
+    >>> Stack(((1,2),lt),
+    ...       (('was true',),Print),
+    ...       (("wasn't",),Print), ifte)
     was true
     Stack(None,)
-    >>> Stack([2,1,op(lt)],
-    ...       [['was true'],Print,run],
-    ...       [["wasn't"],Print,run], ifte)
+    >>> Stack(((2,1),lt),
+    ...       (('was true',),Print),
+    ...       (("wasn't",),Print), ifte)
     wasn't
     Stack(None,)
     """
     stack, b, t, e = stack.pop(3)
     return stack.push(*(t if Stack(*b).peek() else e))
-
-
-@Combinator
-def times(stack):
-    stack, n, p = stack.pop(2)
-    for i in range(n):
-        stack = stack.push(*p)
 
 
 @Combinator
@@ -350,12 +338,11 @@ def subspace(stack):
     stack, a, p = stack.pop(2)
     return stack.push(Stack(*a).push(*p))
 
-# TODO: port Joy's recursive combinators
+
+# TODO: port Joy's recursive combinators? Factor? Golfscript?
 
 
 __all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]
 
-
 # combinators are callable instances, not functions, so this helps doctest find their docstrings.
 __test__ = {k: globals()[k].__doc__ for k in __all__ if globals()[k].__doc__ is not None}
-

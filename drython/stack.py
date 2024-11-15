@@ -16,34 +16,64 @@
 Stack-based combinator algebra for Python.
 """
 from __future__ import absolute_import, division
-from drython.statement import Print
+from drython.statement import Print, Raise
 
-from functools import update_wrapper
-from collections import deque
+from functools import update_wrapper, partial
+from collections import deque, Mapping
 
-from drython.core import entuple, efset
+from drython.core import entuple, efset, decorator
 
 
 # To avoid circular dependencies in this package,
 # stack.py shall depend only on the core.py and statement.py modules.
-# statement.py is not required in the current version.
-from drython.statement import Raise
-
 
 class Stack(object):
     """
     Stack is a data structure for metaprogramming.
 
     Pushing a special type of function, called a combinator, onto a
-    Stack applies the combinator to elements from the stack.
+    Stack applies the combinator to to the stack.
+
+    Pushing an ordinary Pyhton function applies it to a
+    list of arguments on the top of the stack.
+
+    (The Print function returns None)
+    >>> Stack([1,2,3],Print)
+    1 2 3
+    Stack(None,)
+
+    Keywords are also supported with a dictionary on top of the list.
+    >>> Stack([1,2,3],dict(sep=':'),Print)
+    1:2:3
+    Stack(None,)
+
+    Use an empty list for no arguments.
+    >>> Stack([],dict)
+    Stack({},)
+
+    Any non-Mapping iterable will do for the arguments list.
+    Any Mapping will do for the keywords dictionary
     """
+
+    def run(self, func):
+        stack, kwargs = self.pop()
+        if isinstance(kwargs, Mapping):
+            stack, args = stack.pop()
+            return stack.push(func(*args, **kwargs))
+        return stack.push(func(*kwargs))  # kwargs was just args
 
     def __init__(self, *args, **rest):
         assert set(rest.keys()) <= efset('rest')
+        # Stack operations are postfix.
+        # Thus the "cons cells" composing the stack are ordered (rest, top);
+        # reversed compared to lisp list convention of (first, rest).
         self.head = rest.get('rest', None)
         for e in args:
-            if hasattr(e, '_combinator_'):
-                self.head = e(self).head
+            if callable(e):
+                if hasattr(e, '_combinator_'):
+                    self.head = e(self).head
+                else:
+                    self.head = self.run(e).head
             else:
                 self.head = (self.head, e)
 
@@ -74,6 +104,25 @@ class Stack(object):
         [1, 2, 3]
         """
         return reversed(tuple(self))
+
+    def trace(self, *words):
+        """
+        Shows the stack returned by each word.
+
+        Used for developing and debugging stack programs.
+        >>> from drython.combinators import *
+        >>> Stack((7,),{}).trace(pop,Ic,dup,times)
+        Stack((7,), {}) pop
+        Stack((7,),) Ic
+        Stack(7,) dup
+        Stack(7, 7) times
+        Stack(49,)
+        """
+        next = self
+        for word in words:
+            Print(next, word)
+            next = next.push(word)
+        return next
 
     def push(self, *args):
         """
@@ -194,83 +243,62 @@ class Combinator(object):
         return self.func.__name__
 
 
-# @lru_cache()  # memoized
-def op(func, depth=2):
+@decorator
+class Phrase(object):
+    """ Creates a new combinator from a composition of other combinators.
+    >>> from drython.combinators import dup, bi
+    >>> from operator import mul
+    >>> @Phrase(dup,bi,mul)
+    ... def square(): '''multiplies by itself'''
+
+    The function code is the phrase. The def is just for the name and docstring.
+    >>> square.__doc__
+    'multiplies by itself'
+    >>> Stack(3,square)
+    Stack(9,)
     """
-    converts a binary Python function into a combinator
-    >>> from operator import add, mul
-    >>> Stack(2, 3, op(add))
-    Stack(5,)
-    >>> Stack(2, 3, op(mul)).peek()
-    6
-    >>> Stack(4, 2, 3, op(add), op(mul)).peek()
-    20
+    _combinator_ = None
 
-    you can specify a different arity
-    >>> Stack(1,2,3,4,5,op(entuple,4))
-    Stack(1, (2, 3, 4, 5))
+    def __init__(self, f, *words):
+        self.words = words
+        update_wrapper(self, f)
 
-    but the default assumption is two arguments
-    >>> Stack(1,2,3,op(entuple))
-    Stack(1, (2, 3))
-    """
+    def __call__(self, stack):
+        return stack.push(*self.words)
 
-    class OpCombinator(Combinator):
-        def __repr__(self):
-            name = func.__name__
-            if func.__name__.startswith('<'):
-                name = repr(func)
-            if depth == 2:
-                return "op(%s)" % name
-            return "op({0}, {1})".format(name, depth)
-
-    @OpCombinator
-    # @Combinator
-    def op_combinator(stack):
-        stack_args = stack.pop(depth)
-        stack = stack_args[0]
-        args = stack_args[1:]
-        return stack.push(func(*args))
-
-    # return Combinator(op_combinator)
-    return op_combinator
-
-
-def op1(func):
-    """ short for op(func, 1). Unary Python function to combinator"""
-    return op(func, 1)
-
-
-def defcombinator(*args):
-    """ Creates a new combinator from a composition of other combinators."""
-
-    @Combinator
-    def phrase(stack):
-        return stack.push(*args)
-
-    return phrase
+    def __repr__(self):
+        return self.__name__
 
 
 class Def(tuple):
     """
     Defines a Python function from stack elements.
 
-    Def is an executable tuple for metaprogramming.
+    The stack begins with the args tuple and kwargs dict, applies the words, and returns the topmost element.
+    >>> from drython.combinators import pop,Ic,dup,bi
     >>> from operator import mul, add
-    >>> from drython.combinators import dup
-    >>> square = Def(dup,op(mul))
+    >>> Def()(1,2,3,foo='bar')
+    {'foo': 'bar'}
+    >>> Def(pop)(1,2,3,foo='bar')
+    (1, 2, 3)
+
+    equivalent to lambda x: x*x, but without using intermediate variables
+    >>> square = Def(pop,Ic,dup,bi,mul)
     >>> square(7)
     49
     >>> square(4)
     16
+
+    the repr is readable code.
     >>> square
-    Def(dup, op(mul))
+    Def(pop, Ic, dup, bi, <built-in function mul>)
     """
+
     def __new__(cls, *elements):
         return tuple.__new__(cls, elements)
 
-    def __call__(self, *args):
-        return Stack(*args).push(*self).peek()
+    def __call__(self, *args, **kwargs):
+        return Stack(args, kwargs).push(*self).peek()
 
     def __repr__(self):
         return "Def" + tuple.__repr__(self)

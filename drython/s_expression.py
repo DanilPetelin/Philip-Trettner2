@@ -35,6 +35,7 @@ from keyword import iskeyword
 from operator import add
 from collections import Mapping
 import logging as lg
+
 lg.basicConfig(filename='s_expression.py',
                # level=lg.DEBUG,
                )
@@ -52,6 +53,7 @@ else:
 
 from drython.core import Empty, entuple, edict
 from drython.statement import Atom, Raise, Print
+
 
 # defines an interface used by SExpression, so belongs here, not in macros.py
 def macro(func):
@@ -248,9 +250,9 @@ class SExpression(Mapping, SEvaluable, SQuotable):
         try:
             func = s_eval_in_scope(self.args[0], scope)
             if hasattr(func, '_macro_'):
-                lg.debug("expanding macro...\n%s\n",self)
+                lg.debug("expanding macro...\n%s\n", self)
                 element = func(*self.args[1:], **self.kwargs)
-                lg.debug("...sexpr headed by [%s] reports macro expanded to:\n%s\n",self[0],element)
+                lg.debug("...sexpr headed by [%s] reports macro expanded to:\n%s\n", self[0], element)
                 return s_eval_in_scope(element, scope)
             return func(
                 # generators CAN Unpack with *,
@@ -260,18 +262,18 @@ class SExpression(Mapping, SEvaluable, SQuotable):
                 **{k: s_eval_in_scope(v, scope) for k, v in self.kwargs.items()})
         except BaseException as be:
             Raise(SExpressionException('when evaluating\n' + repr(self)), From=be)
-        # finally:
-        #     pass
+            # finally:
+            #     pass
 
     # def __repr__(self):
     #     return "S(*"+repr(self.args)+", **"+repr(self.kwargs)+")"
     def __repr__(self):
         if len(self.args) == 2 and len(self.kwargs) == 0:
-            if self[0] == quasiquote and (isinstance(self[1],SExpression) or isinstance(self[1],Symbol)):
+            if self[0] == quasiquote and (isinstance(self[1], SExpression) or isinstance(self[1], Symbol)):
                 return '_' + repr(self[1]).replace('\n', '\n ')
             if self[0] == quote and isinstance(self[1], SQuotable):
                 return '-' + repr(self[1]).replace('\n', '\n ')
-            if self[0] == unquote_splice and isinstance(self[1],SUnquotable):
+            if self[0] == unquote_splice and isinstance(self[1], SUnquotable):
                 return '+' + repr(self[1]).replace('\n', '\n ')
             if self[0] == unquote and isinstance(self[1], SUnquotable):
                 return '~' + repr(self[1]).replace('\n', '\n ')
@@ -313,7 +315,7 @@ class SExpression(Mapping, SEvaluable, SQuotable):
         """
         cdr = dict(self.kwargs)
         kwar = cdr.popitem()
-        return kwar, S(*self.args,**cdr)
+        return kwar, S(*self.args, **cdr)
 
 
 def concat(*data):
@@ -325,9 +327,10 @@ def concat(*data):
     >>> concat(*data).kwargs == dict(foo=7, bar=8, baz=88)
     True
     """
-    lg.debug("concat:%s",data)
-    args, kwargs = zip(*map(args_kwargs,data))
+    lg.debug("concat:%s", data)
+    args, kwargs = zip(*map(args_kwargs, data))
     return S(*(chain.from_iterable(args)), **{k: v for d in kwargs for k, v in d.items()})
+
 
 def cons(func, sexpr):
     """
@@ -339,8 +342,9 @@ def cons(func, sexpr):
       2)
     """
     if sexpr:
-        return S(func,*sexpr.args,**sexpr.kwargs)
+        return S(func, *sexpr.args, **sexpr.kwargs)
     return S(func)
+
 
 def kwons(k, v, sexpr):
     """
@@ -364,13 +368,15 @@ def kwons(k, v, sexpr):
     >>> S(kwons,-S.sep,':',_S(Print,10,20))()()
     10:20
     """
-    #TODO
+    # TODO
     d = dict(sexpr)
     d[k] = v
     return SExpression.from_mapping(d)
 
-def make_sexpr(*args,**kwargs):
-    return S(*args,**kwargs)
+
+def make_sexpr(*args, **kwargs):
+    return S(*args, **kwargs)
+
 
 @macro
 def quasiquote(sexpr):
@@ -439,55 +445,58 @@ def quasiquote(sexpr):
     #     # ? `X ; (quasiquote X)
     #     # -> 'X ; (quote X)
     #     return S(quote, sexpr)
-    lg.debug("quasiquoting:\n%s",sexpr)
+    lg.debug("quasiquoting:\n%s", sexpr)
     return qq_expand(sexpr)
 
+
 def qq_step(x):
-    lg.debug("qq_step:\n%s",x)
+    lg.debug("qq_step:\n%s", x)
     if not x:
-        lg.debug("qq_step got %s, aborting.",x)
+        lg.debug("qq_step got %s, aborting.", x)
         return x
     if x.args:  # not a tag. Step through list.
         car, cdr = x.uncons()
-        lg.debug("qq_step unconsed (%s . %s)",car,cdr)
+        lg.debug("qq_step unconsed (%s . %s)", car, cdr)
         lg.debug("qq_step splicing")
         splice = qq_splice(car)
     elif x.kwargs:
         kwar, cdr = x.unkwons()
-        lg.debug("qq_step unkwonsed (%s : %s)",kwar,cdr)
+        lg.debug("qq_step unkwonsed (%s : %s)", kwar, cdr)
         lg.debug("qq_step splicing")
-        splice = S(edict,kwar[0],qq_expand(kwar[1]))
+        splice = S(edict, kwar[0], qq_expand(kwar[1]))
     lg.debug("qq_step expanding")
     expand = qq_expand(cdr)
     lg.debug("qq_step concatenating")
     out = S(concat, splice, expand)
-    lg.debug("qq_step return:\n%s",out)
+    lg.debug("qq_step return:\n%s", out)
     return out
 
+
 def qq_expand(x):
-    lg.debug("qq_expand:\n%s",x)
+    lg.debug("qq_expand:\n%s", x)
     if isinstance(x, SExpression):
-        if len(x.args) == 2: # might be a tag, let's check
+        if len(x.args) == 2:  # might be a tag, let's check
             tag, data = x[0], x[1]
             if tag == unquote:
-                lg.debug("qq_expand found unquote; return:\n%s",data)
+                lg.debug("qq_expand found unquote; return:\n%s", data)
                 return data
             if tag == unquote_splice:
                 raise SExpressionException("Naked splice")
             if tag == quasiquote:
                 lg.debug("qq_expand found quasiquote...")
                 out = qq_expand(qq_expand(data))
-                lg.debug("...qq_expand found quasiquote; return:\n%s",out)
+                lg.debug("...qq_expand found quasiquote; return:\n%s", out)
                 return out
         lg.debug("qq_expand no tag in sexpr stepping...")
         out = qq_step(x)
-        lg.debug("...qq_expand no tag in sexpr; return:\n%s",out)
+        lg.debug("...qq_expand no tag in sexpr; return:\n%s", out)
         return out
     # must be an atom. Quote it.
-    lg.debug("qq_expand found atom <%s>...",x)
+    lg.debug("qq_expand found atom <%s>...", x)
     out = S(quote, x)
-    lg.debug("...qq_expand found atom; return:\n%s",out)
+    lg.debug("...qq_expand found atom; return:\n%s", out)
     return out
+
 
 # """
 # (define (qq-expand x)
@@ -505,33 +514,34 @@ def qq_expand(x):
 #         (else `',x)))
 
 def qq_splice(x):
-    lg.debug("qq_splice:\n%s",x)
-    if isinstance(x,SExpression):
-        if len(x.args) == 2: # might be a tag
+    lg.debug("qq_splice:\n%s", x)
+    if isinstance(x, SExpression):
+        if len(x.args) == 2:  # might be a tag
             tag, data = x[0], x[1]
             if tag == unquote:
-                out = S(make_sexpr,data)
-                lg.debug("qq_splice found unquote; return:\n%s",out)
+                out = S(make_sexpr, data)
+                lg.debug("qq_splice found unquote; return:\n%s", out)
                 return out  # no splice. Return to concat in a tuple.
             if tag == unquote_splice:
-                lg.debug("qq_splice found unquote_splice; return:\n%s",data)
+                lg.debug("qq_splice found unquote_splice; return:\n%s", data)
                 return data  # spliced. Return to concat directly.
             if tag == quasiquote:  # nested/next level
                 lg.debug("qq_splice found quasiquote...")
                 out = qq_splice(quasiquote(data))
-                lg.debug("...qq_splice found quasiquote; return:\n%s",out)
+                lg.debug("...qq_splice found quasiquote; return:\n%s", out)
                 return out
         lg.debug("qq_splice no tag in sexpr stepping...")
-        out = S(make_sexpr,qq_step(x))
-        lg.debug("...qq_splice no tag in sexpr; return:\n%s",out)
+        out = S(make_sexpr, qq_step(x))
+        lg.debug("...qq_splice no tag in sexpr; return:\n%s", out)
         return out
     # must be an atom. Return to concat in a tuple
     # return x,
     # return S(quote,x),
-    lg.debug("qq_splice found atom <%s>...",x)
-    out = S(quote,S(x))
-    lg.debug("...qq_splice found atom; return:\n%s",out)
+    lg.debug("qq_splice found atom <%s>...", x)
+    out = S(quote, S(x))
+    lg.debug("...qq_splice found atom; return:\n%s", out)
     return out
+
 
 # (define (qq-expand-list x)
 #   (cond ((tag-comma? x)
@@ -574,6 +584,7 @@ class unquote(object):
     >>> sexp()  # the function position too.
     1:42:3$
     """
+
     def __init__(self, item):
         raise TypeError("unquote outside of quasiquote for unquoted %s" % repr(item))
 
@@ -623,7 +634,6 @@ def unquote_splice(item):
     1 2 3
     """
     raise TypeError("unquote splice outside of quasiquote for spliced %s" % repr(item))
-
 
 
 # TODO: doctest unquote/splice
@@ -716,6 +726,7 @@ class Symbol(UserString, str, SEvaluable, SQuotable):
                 'Symbol %s is not bound in the given scope' % repr(self)
             ), From=None)
 
+
 # This is just a stub so the IDE can find it.
 def gensym(prefix=''):
     """
@@ -757,11 +768,13 @@ def _private():
     global gensym
 
     __doc__ = gensym.__doc__
+
     # noinspection PyRedeclaration,PyUnusedLocal
     def gensym(prefix=''):
         return Symbol(
             '<{0}#{1}>'.format(prefix, str(_gensym_counter.set(1, add))))
-    gensym.__doc__ = __doc__ # keeps the docstring for the repl
+
+    gensym.__doc__ = __doc__  # keeps the docstring for the repl
 
 
 _private()
@@ -792,6 +805,7 @@ def _private():
 
 S = _private()
 del _private
+
 
 def _private():
     class QqSSyntax(object):
@@ -831,4 +845,5 @@ def flatten_sexpr(sexpr):
             res.append(v)
     return res
 
-__all__ = ['_S']+[e for e in globals().keys() if not e.startswith('_')]#if e not in _exclude_from__all__]
+
+__all__ = ['_S'] + [e for e in globals().keys() if not e.startswith('_')]  # if e not in _exclude_from__all__]

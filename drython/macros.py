@@ -25,6 +25,7 @@ from drython.statement import Elif, do, Raise
 
 __test__ = {}
 
+
 # macros.py depends on core.py, s_expression.py, and statement.py
 # macros.py does not currently require stack.py
 @macro
@@ -323,6 +324,7 @@ class SLambdaA(SEvaluable):
 def La(args, *body):
     return SLambdaA(args, S(do, *body))
 
+
 # # symbols, vargs, kwonly, kwvargs
 # # noinspection PyPep8Naming
 # @macro
@@ -338,8 +340,6 @@ def La(args, *body):
 #     """
 #     # TODO: test varg, kwonlys, kwvarg, defaults
 #     return SLambda(symbols, S(do, *body), varg, kwonlys, kwvarg, defaults)
-
-
 
 
 defmac_g_ = None
@@ -381,6 +381,8 @@ spam
 ...        S(sum,S(entuple,~S.g_n,~S.g_n,~S.g_n)))),
 ...   S(S.triple_2, S(S.expensive_get_number))).s_eval(globals())
 """
+
+
 # => (defn expensive-get-number [] (print "spam") 14)
 # => (defmacro triple-1 [n] `(+ n n n))
 # => (triple-1 (expensive-get-number))  ; evals n three times!
@@ -536,6 +538,7 @@ def _private():
     _sentinel = object()  # used only for is check
 
     global thr, thrt
+
     # noinspection PyShadowingNames
     @macro
     def thr(x, first=_sentinel, *rest):

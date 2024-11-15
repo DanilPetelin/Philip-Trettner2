@@ -136,8 +136,10 @@ def _private():
             return 'Pass'
 
     res = PassType()
+
     def __init__(self):
         raise TypeError("cannot create 'PassType' instances")
+
     PassType.__init__ = __init__
 
     __test__[PassType.__name__] = PassType.__doc__
@@ -386,9 +388,9 @@ def Import(item, *items, **package_From):
     >>> xmldom.domreg == domreg
     True
 
-    # from .stack import Stack, op
-    >>> Stack, op = Import('Stack', 'op', From='.stack', package='drython')
-    >>> Stack(1,2,op(sub)).peek()
+    # from .stack import Stack
+    >>> Stack = Import('Stack', From='.stack', package='drython')
+    >>> Stack((1,2),sub).peek()
     -1
     """
     assert set(package_From.keys()) <= efset('package', 'From')
@@ -411,6 +413,9 @@ def Import(item, *items, **package_From):
             return import_module(item, package)
 
 
+# Did
+# from __future__ import print_function
+# at the top of this module, so this also works in Python 2.
 Print = print
 
 
@@ -466,14 +471,15 @@ def Raise(ex=None, From=Ellipsis):
             ex.__cause__ = From
         raise ex
     raise
+    # there are two other possible versions of Raise below.
 
 
 if sys.version_info[0] >= 3:
-    _doc = Raise.__doc__
-    # check for 3.3+ PEP 409 which allows raise ... from None
+    _doc = Raise.__doc__  # preserve docstring for new version.
+    # check for Python's 3.3+ PEP 409 which allows raise ... from None
     if sys.version_info[1] >= 3:
         # noinspection PyCompatibility
-        exec("""\
+        exec ("""\
 def Raise(ex=None, From=Ellipsis):
     if ex:
         if From is not Ellipsis:
@@ -483,7 +489,7 @@ def Raise(ex=None, From=Ellipsis):
 """)
     else:
         # noinspection PyCompatibility
-        exec("""\
+        exec ("""\
 def Raise(ex=None, From=Ellipsis):
     if ex:
         if From is not Ellipsis:
@@ -636,6 +642,10 @@ class Atom(object):
     >>> spam.e
     'eggs'
 
+    get() also works
+    >>> spam.get()
+    'eggs'
+
     can assign using .set(), either directly or by modifying current
     value with an operator, which is atomic.
     >>> from operator import sub
@@ -682,11 +692,11 @@ class Atom(object):
             return res
 
         self.set = var_set
-        self._get = lambda: e[0]  # readonly
+        self.get = lambda: e[0]  # readonly
 
     @property
     def e(self):
-        return self._get()
+        return self.get()
 
     @e.setter
     def e(self, new):
@@ -707,7 +717,7 @@ def While(predicate, body, label=None, Else=Pass):
     #    print(spam)
     >>> from operator import add
     >>> spam = Atom(4)
-    >>> While(lambda: spam.e, lambda:
+    >>> While(spam.get, lambda:
     ...     Print(spam.set(-1,add)))
     3
     2
@@ -715,7 +725,7 @@ def While(predicate, body, label=None, Else=Pass):
     0
     >>> spam.set(1)
     1
-    >>> While(lambda: spam.e, lambda:
+    >>> While(spam.get, lambda:
     ...   Print(spam.set(-1,add)),
     ... Else=lambda:
     ...   'done')

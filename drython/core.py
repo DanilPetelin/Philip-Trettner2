@@ -26,6 +26,7 @@ from abc import ABCMeta, abstractmethod
 from collections import Mapping
 import sys
 from itertools import islice, chain
+from functools import wraps
 
 if sys.version_info[0] == 2:
     # noinspection PyUnresolvedReferences
@@ -303,6 +304,7 @@ def partition(iterable, n=2, step=None, fillvalue=_sentinel):
     else:
         return zip_longest(*slices, fillvalue=fillvalue)
 
+
 def interleave(*iterables):
     """
     >>> ''.join(interleave('ABC','xyz'))
@@ -312,9 +314,10 @@ def interleave(*iterables):
     """
     return chain.from_iterable(zip(*iterables))
 
+
 def identity(x):
     """
-    The identity function. Returns is argument.
+    The identity function. Returns its argument.
     not to be confused with the id() builtin
     >>> identity('foo')
     'foo'
@@ -334,7 +337,7 @@ def apply(func, *args, **stargs):
     >>> apply(Print, 1, 2, star=(3, 4), stars=dict(sep='::'))
     1::2::3::4
     """
-    return func(*args+tuple(stargs.get('star',())), **stargs.get('stars', Empty))
+    return func(*args + tuple(stargs.get('star', ())), **stargs.get('stars', Empty))
 
 
 def assign_attr(obj, name, val, oper=None):
@@ -405,6 +408,7 @@ def delitem(obj, index):
     del obj[index]
     return obj
 
+
 # def funcall(func, *args, **kwargs):
 #     """
 #     Immediately calls the function with the given arguments.
@@ -421,6 +425,48 @@ def delitem(obj, index):
 #     return (lambda a=(), kw=Empty:
 #             functools.partial(func, *args, **kwargs)(*a, **kw))
 
+# decorator = (lambda d: lambda *args,**kwargs: lambda f:  d(f,*args,**kwargs))
+def decorator(arged_decorator):
+    """Decorator-with-arguments decorator.
+
+    Decorators can't take arguments, but you can work around this via currying, that is, call a decorator factory
+    function with arguments that generates a new decorator function on the fly. The @ syntax works with these function
+    calls, but it makes defining decorators with arguments difficult, especially when using callable classes.
+    This decorator decorator abstracts and simplifies the process by turning a function of multiple arguments
+    (the wrapper) into a decorator factory.
+
+    The wrapper this decorates must take a function as its first argument. The remaining arguments will come from
+    the factory call.
+    @decorator
+    >>> @decorator
+    ... def before_after(f,before,after):
+    ...     def wrapped(name):
+    ...         Print(before)
+    ...         f(name)
+    ...         Print(after)
+    ...     return wrapped
+
+    <meet> becomes the first argument to the original before_after
+    >>> @before_after("Hello","Goodbye")
+    ... def meet(name):
+    ...     Print(name)
+
+    >>> meet("World")
+    Hello
+    World
+    Goodbye
+    """
+
+    @wraps(arged_decorator)
+    def args_taker(*args, **kwargs):
+        def func_taker(f):
+            return arged_decorator(f, *args, **kwargs)
+
+        return func_taker
+
+    return args_taker
+
+
 if sys.version_info[0] >= 3:
     exec("class Abstract(metaclass=ABCMeta):pass")
 else:
@@ -430,6 +476,7 @@ else:
 
 class SEvaluable(Abstract):
     _s_evaluable_ = None
+
     @abstractmethod
     def s_eval(self, scope):
         pass
