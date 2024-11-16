@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: docstring macros.py
+# TODO: docstring macro.py
 from __future__ import absolute_import, division
 from collections import MutableMapping
 from functools import wraps
@@ -26,8 +26,8 @@ from drython.statement import Elif, do, Raise
 __test__ = {}
 
 
-# macros.py depends on core.py, s_expression.py, and statement.py
-# macros.py does not currently require stack.py
+# macro.py depends on core.py, s_expression.py, and statement.py
+# macro.py does not currently require stack.py
 @macro
 def s_eval(body):
     return SEval(body)

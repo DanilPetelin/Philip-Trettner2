@@ -110,7 +110,7 @@ class Stack(object):
         Shows the stack returned by each word.
 
         Used for developing and debugging stack programs.
-        >>> from drython.combinators import *
+        >>> from drython.combinator import *
         >>> Stack((7,),{}).trace(pop,Ic,dup,times)
         Stack((7,), {}) pop
         Stack((7,),) Ic
@@ -148,7 +148,7 @@ class Stack(object):
         Stack(1, 2, 3, 4)
 
         Pushing a combinator executes it
-        >>> from drython.combinators import dup
+        >>> from drython.combinator import dup
         >>> Stack().push(1, dup, 2)
         Stack(1, 1, 2)
 
@@ -246,7 +246,7 @@ class Combinator(object):
 @decorator
 class Phrase(object):
     """ Creates a new combinator from a composition of other combinators.
-    >>> from drython.combinators import dup, bi
+    >>> from drython.combinator import dup, bi
     >>> from operator import mul
     >>> @Phrase(dup,bi,mul)
     ... def square(): '''multiplies by itself'''
@@ -275,7 +275,7 @@ class Def(tuple):
     Defines a Python function from stack elements.
 
     The stack begins with the args tuple and kwargs dict, applies the words, and returns the topmost element.
-    >>> from drython.combinators import pop,Ic,dup,bi
+    >>> from drython.combinator import pop,Ic,dup,bi
     >>> from operator import mul, add
     >>> Def()(1,2,3,foo='bar')
     {'foo': 'bar'}

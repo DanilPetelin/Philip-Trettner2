@@ -55,7 +55,7 @@ from drython.core import Empty, entuple, edict
 from drython.statement import Atom, Raise, Print
 
 
-# defines an interface used by SExpression, so belongs here, not in macros.py
+# defines an interface used by SExpression, so belongs here, not in macro.py
 def macro(func):
     """
     Marks the func as a macro.
@@ -198,7 +198,7 @@ class SExpression(Mapping, SEvaluable, SQuotable):
     SExpression treats functions with the @macro decorator specially.
     These are given any nested S objects unevaluated, and return a
     new object to be evaluated.
-    >>> from drython.macros import If
+    >>> from drython.macro import If
     >>> S(If, True, S(Print,'yes'), S(Print,'no'))()
     yes
     >>> S(If, False, S(Print,'yes'), S(Print,'no'))()
@@ -564,7 +564,7 @@ class unquote(object):
     unquotes an element in a quasiquoted S-expression. Usually written as ~S...
 
     unquote works on S-expressions and Symbols, in any position in a quasiquoted form.
-    >>> from drython.macros import *
+    >>> from drython.macro import *
     >>> from drython.s_expression import *
     >>> sexp = S(do,
     ...          S(setq,
@@ -594,7 +594,7 @@ def unquote_splice(item):
     inserts arguments into a quasiquoted form. Usually written as +S...
 
     generally works on iterables.
-    >>> from drython.macros import *
+    >>> from drython.macro import *
     >>> from drython.s_expression import *
     >>> args = (1,2,3)
     >>> sexp = S(do,_S(Print, 0.0, +S.args, 4.4)).s_eval(globals())

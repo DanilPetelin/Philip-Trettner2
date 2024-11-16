@@ -1,5 +1,5 @@
 from operator import *
-from drython.macros import *
+from drython.macro import *
 from drython.core import *
 from drython.statement import *
 from drython.s_expression import S
