@@ -634,28 +634,22 @@ class Atom(object):
     """
     a locked boxed mutable variable, assignable in expressions.
 
-    >>> spam = Atom('eggs')  # initial value (required)
+    >>> spam = Atom(44)  # initial value (required)
     >>> spam
-    Atom('eggs')
+    Atom(44)
+    >>> from operator import sub
+    >>> spam.set(sub, 2)  # atomic updates with a callback. The element is the first argument.
+    42
 
     unbox with .e (element) attr
     >>> spam.e
-    'eggs'
+    42
 
     get() also works
     >>> spam.get()
-    'eggs'
-
-    can assign using .set(), either directly or by modifying current
-    value with an operator, which is atomic.
-    >>> from operator import sub
-    >>> spam.set(44)
-    44
-    >>> spam.set(2, sub)  # actually any binary callable will work
     42
-    >>> spam.set('eggs')
-    'eggs'
-    >>> spam.e
+
+    >>> spam.set(lambda x: 'eggs')  # the callback can override the current value without using it.
     'eggs'
     """
 
@@ -667,12 +661,9 @@ class Atom(object):
 
         e = [e]
 
-        def var_set(new, oper=None):
+        def var_set(f,*args):
             """
-            sets Atom's element. Optionally augment assignments with oper.
-            set() is locked for thread safety, however direct access to
-            .e is not locked, so foo.set(1, operator.add) is an atomic
-            increment, but foo.set(foo.e + 1) is not.
+            Atomically updates Atom's element, and returns the new value.
 
             The return value is set inside the lock, to make it
             consistent with the update.
@@ -684,10 +675,7 @@ class Atom(object):
             # Atom is a useful alternative to primitive locks
             # in many cases.
             with lock:
-                if oper:
-                    e[0] = oper(e[0], new)
-                else:
-                    e[0] = new
+                e[0] = f(e[0], *args)
                 res = e[0]
             return res
 
@@ -718,21 +706,20 @@ def While(predicate, body, label=None, Else=Pass):
     >>> from operator import add
     >>> spam = Atom(4)
     >>> While(spam.get, lambda:
-    ...     Print(spam.set(-1,add)))
+    ...     Print(spam.set(add,-1)))
     3
     2
     1
     0
-    >>> spam.set(1)
-    1
+    >>> spam = Atom(1)
     >>> While(spam.get, lambda:
-    ...   Print(spam.set(-1,add)),
+    ...   Print(spam.set(add,-1)),
     ... Else=lambda:
     ...   'done')
     0
     'done'
     >>> While(lambda: True, lambda:
-    ...   Print(spam.set(1,add)) if spam.e < 2 else Break(),
+    ...   Print(spam.set(add,1)) if spam.e < 2 else Break(),
     ... Else=lambda:
     ...   Print('impossible'))
     1
