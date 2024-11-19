@@ -407,27 +407,55 @@ class attrs(object):
     """
     Attribute view of a dictionary.
 
-    Provides Lua-like sytactic sugar when the dictionary has string keys that are also valid Python identifiers, which
-    is a common occurrence in Python.
+    Provides Lua-like syntactic sugar when the dictionary has string keys that are also valid Python identifiers, which
+    is a common occurrence in Python, for example, calling vars() on an object returns such a dict.
     >>> spam = {}
     >>> atspam = attrs(spam)
+
+    get and set string keys as attrs
     >>> atspam.one = 1
     >>> atspam.one
     1
     >>> atspam
     attrs({'one': 1})
+
+    changes write through to underlying dict
     >>> spam
     {'one': 1}
+
+    calling the object returns the underlying dict for direct access to all dict methods and syntax
+    >>> list(
+    ...  atspam().items()
+    ... )
+    [('one', 1)]
+    >>> atspam()['one'] = 42
+    >>> atspam()
+    {'one': 42}
+
+    del removes the key
+    >>> del atspam.one
+    >>> atspam
+    attrs({})
     """
-    __slots__=('dictionary')
-    def __init__(self,dictionary):
-        object.__setattr__(self,'dictionary',dictionary)
-    def __getattribute__(self,attr):
-        return object.__getattribute__(self,'dictionary')[attr]
-    def __setattr__(self,attr,val):
-        object.__getattribute__(self,'dictionary')[attr]=val
+    __slots__ = ('dictionary')
+
+    def __init__(self, dictionary):
+        object.__setattr__(self, 'dictionary', dictionary)
+
+    def __getattribute__(self, attr):
+        return object.__getattribute__(self, 'dictionary')[attr]
+
+    def __setattr__(self, attr, val):
+        object.__getattribute__(self, 'dictionary')[attr] = val
+
     def __repr__(self):
-        return "attrs("+repr(object.__getattribute__(self,'dictionary'))+")"
+        return "attrs(" + repr(object.__getattribute__(self, 'dictionary')) + ")"
+
+    def __call__(self):
+        return object.__getattribute__(self, 'dictionary')
+
+    def __delattr__(self, attr):
+        del object.__getattribute__(self, 'dictionary')[attr]
 
 
 # decorator = (lambda d: lambda *args,**kwargs: lambda f:  d(f,*args,**kwargs))
@@ -473,6 +501,8 @@ def decorator(arged_decorator):
 
 
 if sys.version_info[0] >= 3:
+    # exec is a function in Python 3, thus proper format of this line has no space, like this:
+    # exec("class Abstract(metaclass=ABCMeta):pass")
     exec("class Abstract(metaclass=ABCMeta):pass")
 else:
     class Abstract(object):
