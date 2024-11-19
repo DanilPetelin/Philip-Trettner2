@@ -247,29 +247,6 @@ def edict(*args):
     return dict(partition(args))
 
 
-class Namespace(object):
-    """
-    An "empty" object for containing attrs.
-    Not completely empty since it inherits from object
-    >>> spam = Namespace(foo=1)
-    >>> spam
-    Namespace(foo=1)
-    >>> spam.foo
-    1
-    >>> spam.bar = 2
-    >>> spam.bar
-    2
-    """
-
-    def __init__(self, **kwargs):
-        self.__dict__ = kwargs
-
-    def __repr__(self):
-        return 'Namespace({0})'.format(
-            ', '.join('{0}={1}'.format(k, repr(v))
-                      for k, v in self.__dict__.items()))
-
-
 _sentinel = object()
 
 
@@ -425,24 +402,52 @@ def delitem(obj, index):
 #     return (lambda a=(), kw=Empty:
 #             functools.partial(func, *args, **kwargs)(*a, **kw))
 
+
+class attrs(object):
+    """
+    Attribute view of a dictionary.
+
+    Provides Lua-like sytactic sugar when the dictionary has string keys that are also valid Python identifiers, which
+    is a common occurrence in Python.
+    >>> spam = {}
+    >>> atspam = attrs(spam)
+    >>> atspam.one = 1
+    >>> atspam.one
+    1
+    >>> atspam
+    attrs({'one': 1})
+    >>> spam
+    {'one': 1}
+    """
+    __slots__=('dictionary')
+    def __init__(self,dictionary):
+        object.__setattr__(self,'dictionary',dictionary)
+    def __getattribute__(self,attr):
+        return object.__getattribute__(self,'dictionary')[attr]
+    def __setattr__(self,attr,val):
+        object.__getattribute__(self,'dictionary')[attr]=val
+    def __repr__(self):
+        return "attrs("+repr(object.__getattribute__(self,'dictionary'))+")"
+
+
 # decorator = (lambda d: lambda *args,**kwargs: lambda f:  d(f,*args,**kwargs))
 def decorator(arged_decorator):
     """Decorator-with-arguments decorator.
 
     Decorators can't take arguments, but you can work around this via currying, that is, call a decorator factory
-    function with arguments that generates a new decorator function on the fly. The @ syntax works with these function
-    calls, but it makes defining decorators with arguments difficult, especially when using callable classes.
-    This decorator decorator abstracts and simplifies the process by turning a function of multiple arguments
-    (the wrapper) into a decorator factory.
+    function with arguments that generates a new decorator function (with the arguments already built in) on the fly.
+    The @ syntax works with these function calls, but it makes defining decorators with arguments difficult,
+    especially when using callable classes. This decorator decorator abstracts and simplifies the process by turning a
+    function of multiple arguments into a decorator factory.
 
-    The wrapper this decorates must take a function as its first argument. The remaining arguments will come from
+    The function this decorates must take a function as its first argument. The remaining arguments will come from
     the factory call.
     @decorator
     >>> @decorator
-    ... def before_after(f,before,after):
+    ... def before_after(block,before,after):
     ...     def wrapped(name):
     ...         Print(before)
-    ...         f(name)
+    ...         block(name)
     ...         Print(after)
     ...     return wrapped
 
