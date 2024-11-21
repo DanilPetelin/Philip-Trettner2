@@ -3,7 +3,7 @@
 
 DRYthon is a metaprogramming library for Python.
 Metaprogramming is writing programs that write programs--a
-powerful technique for *abstracting* away repetitive code.
+powerful technique for abstracting away repetitive code.
 
 Programmers make abstractions constantly. Functions are abstractions. Classes are abstractions.
 But sometimes it's not enough.
@@ -24,7 +24,7 @@ Using metaclasses to rewrite class declarations is a more powerful example.
 
 But Python has more general metaprogramming capabilities.
 The secret to metaprogramming is treating code as just another kind of data.
-(The DRY principle applies to any kind of data, *especially* the executable kind!)
+(The DRY principle applies to any kind of data, *especially* the executable kind.)
 
 For example, Python can write text files, including .py files, which it can then import as modules.
 
@@ -59,7 +59,7 @@ so it's portable across implementations, including CPython2.7/3.1+, PyPy, Jython
 
 Can you re-implement a simple if-statement in Python?
 I mean without writing a text compiler or interpreter, or modifying Python itself?
-Sure, you don't have to, Python has a perfectly good if-statement already, but can you?
+Sure, you don't have to, Python has a perfectly good if statement already, but can you?
 
 A DSL might need a three-way numeric if statement (-/+/0), or something like a switch/case.
 Yes, you can use the boilerplate cascading-elif pattern instead
@@ -67,7 +67,7 @@ for any of your complex branching needs, but that's not an abstraction, is it?
 You have to re-write the logic imitating the switch/case (or what-have-you)
 **every single time**.
 If you can't make a simple `if` substitute,
-how can you expect to make a complex one when you need it?
+how can you expect to make more advanced language components you might need for a DSL?
 
 You might not think Python can do it, but it's actually trivial in Smalltalk.
 "If" isn't a statement in Smalltalk to begin with.
@@ -79,11 +79,11 @@ result := a > b
     ifFalse:[ 'not greater' ]
 ```
 
-The `:=` is just an assignment.
+The `:=` is just an assignment (like Python's `=`).
 The `a > b` part evaluates to either true or false, just like Python.
 The `[]` isn't a list; it's a **code block**.
 The true boolean has an `iftrue:iffalse:` method that always executes the then-block,
-but false has a different method *with the same name* that only executes the else-block.
+but false has a different method *with the same name* that only executes the else-block. Polymorphic dispatch.
 Is that cool or what? Yes, `iftrue:iffasle:` is one method, not two. An interesting quirk of Smalltalk is that
 the arguments can go inside of the method name. There are also completely separate `iftrue:` and
 `iffalse:` methods that take one argument each.
@@ -111,8 +111,10 @@ a > b,
 )
 ```
 
-Clearly, this won't work! It prints both messages.
+Clearly, this won't work! It prints *both* messages, since the print functions get evaluated before the if lambda
+can do anything about it.
 
+Smalltalk uses the code blocks to prevent evaluation.
 Too bad Python doesn't have those blocks things, or re-implementing `if` would be easy. Or does it?
 
 Actually, a code block is just an anonymous function.
@@ -141,21 +143,51 @@ You could implement `iftrue:` as a decorator instead,
 >>> iftrue = lambda b: lambda f: f() if b else None
 >>> @iftrue(10 > 5)
 ... def result():
-...     print("greater")
+...     print("was true")
 ...     return "greater"
-greater
+was true
 >>> result
 'greater'
 ```
-but how do you pass in a second function for `iftrue:iffalse:`? Not possible?
-You actually *can* do this with decorators, you just need to decorate two functions.
-But decorators only accept one function, right? Just combine them with a class and decorate that.
-You don't even need an instance:
+Notice that a decorator doesn't *have* to return a wrapped function.
+In this case it called its function to return a string instead of wrapping it.
+Python's decorators can only take one argument (the function `result` above),
+so how could we possibly also pass in a boolean (the expression `10 > 5`)?
+This is possible using a common Python trick:
+use a factory function (`iftrue`) to create a *new* decorator with the arguments already built in--on the fly.
+That's why there's a double lambda. It's the inner lambda that got the `result` function.
+Drython's `core` module has a `decorator` decorator to simplify this process:
 ```Python
->>> decr_if = lambda b: lambda c: c.iftrue() if b else c.iffalse()
+>>> from drython.core import decorator
+>>> @decorator
+... def iftrue(block, boolean):
+...     if boolean:
+...         return block()
+...
+>>> @iftrue(10 > 5)
+... def result():
+...     print("was true")
+...     return "greater"
+...
+was true
+>>> result
+'greater'
+```
+But how do you pass in a second function for `iftrue:iffalse:`? Not possible?
+You actually *can* do this with decorators, you just need to decorate *two* functions.
+But decorators only accept one function, right? Just combine them with a class and decorate that.
+You don't even need an instance if you get the functions directly from the class dict:
+```Python
+>>> @decorator
+... def decr_if(blocks, boolean):
+...     blocks = vars(blocks)
+...     if boolean:
+...         return blocks['iftrue']()
+...     else:
+...         return blocks['iffalse']()
 >>> @decr_if(10 > 5)
 ... class result:
-...     def iftrue():
+...     def iftrue():  # no self
 ...         print("greater")
 ...         return "greater"
 ...     def iffalse():
