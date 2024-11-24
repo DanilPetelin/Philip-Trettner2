@@ -437,25 +437,25 @@ class attrs(object):
     >>> atspam
     attrs({})
     """
-    __slots__ = ('dictionary')
+    __slots__ = 'dictionary'
 
     def __init__(self, dictionary):
         object.__setattr__(self, 'dictionary', dictionary)
 
-    def __getattribute__(self, attr):
-        return object.__getattribute__(self, 'dictionary')[attr]
-
-    def __setattr__(self, attr, val):
-        object.__getattribute__(self, 'dictionary')[attr] = val
-
-    def __repr__(self):
-        return "attrs(" + repr(object.__getattribute__(self, 'dictionary')) + ")"
-
     def __call__(self):
         return object.__getattribute__(self, 'dictionary')
 
+    def __getattribute__(self, attr):
+        return self()[attr]
+
+    def __setattr__(self, attr, val):
+        self()[attr] = val
+
     def __delattr__(self, attr):
-        del object.__getattribute__(self, 'dictionary')[attr]
+        del self()[attr]
+
+    def __repr__(self):
+        return "attrs(" + repr(self()) + ")"
 
 
 # decorator = (lambda d: lambda *args,**kwargs: lambda f:  d(f,*args,**kwargs))

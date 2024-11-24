@@ -54,7 +54,7 @@ def dup(stack):
     >>> Stack('...', 'a', dup)
     Stack('...', 'a', 'a')
     """
-    return stack.push(stack.peek())
+    return stack << stack.peek()
 
 
 @Combinator
@@ -71,7 +71,7 @@ def swap(stack):
     Stack('...', 'b', 'a')
     """
     stack, a, b = stack.pop(2)
-    return stack.push(b, a)
+    return stack << b << a
 
 
 # creates all depth-3 stack permutation functions
@@ -123,7 +123,7 @@ def popd(stack):
     Stack('...', 'b')
     """
     stack, a, b = stack.pop(2)
-    return stack.push(b)
+    return stack << b
 
 
 # @Phrase((dup,), dip)
@@ -135,7 +135,7 @@ def dupd(stack):
     Stack('...', 'a', 'a', 'b')
     """
     stack, a, b = stack.pop(2)
-    return stack.push(a, a, b)
+    return stack << a << a << b
 
 
 # ##
@@ -155,13 +155,13 @@ def quote(stack):
     stack_args = stack.pop(depth)
     stack = stack_args[0]
     args = stack_args[1:]
-    return stack.push(args)
+    return stack << args
 
 
 @Combinator
 def choice(stack):
     stack, b, t, f = stack.pop(3)
-    return stack.push(t if b else f)
+    return stack << (t if b else f)
 
 
 @Phrase(1, quote)
@@ -195,19 +195,19 @@ def times(): """binary multiplication"""
 @Combinator
 def dip(stack):
     stack, x, p = stack.pop(2)
-    return stack.push(*p).push(x)
+    return stack.push(*p) << x
 
 
 @Combinator
 def cons(stack):
     stack, p, q = stack.pop(2)
-    return stack.push(enlist(p, *q))
+    return stack << enlist(p, *q)
 
 
 @Combinator
 def take(stack):
     stack, p, q = stack.pop(2)
-    return stack.push(list(p) + [q])
+    return stack << (list(p) + [q])
 
 
 # noinspection PyPep8Naming

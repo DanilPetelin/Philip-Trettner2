@@ -59,8 +59,8 @@ class Stack(object):
         stack, kwargs = self.pop()
         if isinstance(kwargs, Mapping):
             stack, args = stack.pop()
-            return stack.push(func(*args, **kwargs))
-        return stack.push(func(*kwargs))  # kwargs was just args
+            return stack << func(*args, **kwargs)
+        return stack << func(*kwargs)  # kwargs was just args
 
     def __init__(self, *args, **rest):
         assert set(rest.keys()) <= efset('rest')
@@ -112,21 +112,29 @@ class Stack(object):
         Used for developing and debugging stack programs.
         >>> from drython.combinator import *
         >>> Stack((7,),{}).trace(pop,Ic,dup,times)
-        Stack((7,), {}) pop
-        Stack((7,),) Ic
-        Stack(7,) dup
-        Stack(7, 7) times
+        Stack((7,), {}) << pop
+        Stack((7,),) << Ic
+        Stack(7,) << dup
+        Stack(7, 7) << times
         Stack(49,)
         """
         next = self
         for word in words:
-            Print(next, word)
-            next = next.push(word)
+            Print(next, '<<', word)
+            next = next << word
         return next
+
+    def __lshift__(self, other):
+        """
+        like push(), but only one element.
+        >>> Stack() << 1 << 2 << 3
+        Stack(1, 2, 3)
+        """
+        return Stack(other, rest=self.head)
 
     def push(self, *args):
         """
-        push an element on top of the stack. Does not mutate this stack.
+        push elements on top of the stack. Does not mutate this stack.
 
         Because Stack is implemented as a linked list, the new stack
         can (and does) share its tail with the original. Unlike
@@ -143,7 +151,7 @@ class Stack(object):
         >>> Stack().push(1).push(2).push(3).push(4)
         Stack(1, 2, 3, 4)
 
-        Same as above
+        push accepts multiple arguments. Same as above.
         >>> Stack().push(1, 2, 3, 4)
         Stack(1, 2, 3, 4)
 
@@ -299,6 +307,26 @@ class Def(tuple):
 
     def __call__(self, *args, **kwargs):
         return Stack(args, kwargs).push(*self).peek()
+
+    def trace(self, *args, **kwargs):
+        """
+        Calls this Def using Stack.trace to print each operation.
+
+        >>> from drython.combinator import pop,Ic,dup,times
+        >>> square = Def(pop,Ic,dup,times)
+        >>> square(7)
+        49
+        >>> square.trace(7)
+        Stack((7,), {}) << pop
+        Stack((7,),) << Ic
+        Stack(7,) << dup
+        Stack(7, 7) << times
+        Stack(49,).peek()
+        49
+        """
+        res = Stack(args, kwargs).trace(*self)
+        Print(repr(res)+'.peek()')
+        return res.peek()
 
     def __repr__(self):
         return "Def" + tuple.__repr__(self)
