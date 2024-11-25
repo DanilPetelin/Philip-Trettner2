@@ -1,7 +1,7 @@
-# DRYthon #
+# Drython #
 **Don't-Repeat-Yourself Python**
 
-DRYthon is a metaprogramming library for Python.
+Drython is a metaprogramming library for Python.
 Metaprogramming is writing programs that write programs--a
 powerful technique for abstracting away repetitive code.
 
@@ -40,9 +40,9 @@ Alternatives to text manipulation include manipulation of Python bytecodes
 (not for the faint of heart),
 and manipulation of abstract syntax trees using the `ast` module, which is arcane, but usable:
 ```Python
->>> import ast
->>> print(ast.dump(ast.parse(r'''print("Hello, World!")''')))
-Module(body=[Expr(value=Call(func=Name(id='print', ctx=Load()), args=[Str(s='Hello, World!')], keywords=[], starargs=None, kwargs=None))])
+import ast
+print(ast.dump(ast.parse(r'''print("Hello, World!")''')))
+# Module(body=[Expr(value=Call(func=Name(id='print', ctx=Load()), args=[Str(s='Hello, World!')], keywords=[], starargs=None, kwargs=None))])
 ```
 Reading AST is easier than writing it (malformed AST can segfault CPython),
 but if it took that much for a simple `print('Hello, World!')`,
@@ -50,12 +50,12 @@ you can imagine it gets complex fast.
 Unfortunately, bytecode and abstract syntax trees are implementation details subject to change
 between Python versions and implementations.
 
-There's an easier way. DRYthon provides *executable* data structures that are both simpler than AST,
+There's an easier way. Drython provides *executable* data structures that are both simpler than AST,
 and are easier to work with than text.
-DRYthon specifically avoids using ast and bytecode manipulation,
+Drython specifically avoids using ast and bytecode manipulation,
 so it's portable across implementations, including CPython2.7/3.1+, PyPy, Jython, and IronPython.
 
-## DRYthon's statement module ##
+## The Statement Module ##
 
 Can you re-implement a simple if-statement in Python?
 I mean without writing a text compiler or interpreter, or modifying Python itself?
@@ -82,11 +82,11 @@ result := a > b
 The `:=` is just an assignment (like Python's `=`).
 The `a > b` part evaluates to either true or false, just like Python.
 The `[]` isn't a list; it's a **code block**.
-The true boolean has an `iftrue:iffalse:` method that always executes the then-block,
+The true boolean has an `ifTrue:ifFalse:` method that always executes the then-block,
 but false has a different method *with the same name* that only executes the else-block. Polymorphic dispatch.
-Is that cool or what? Yes, `iftrue:iffasle:` is one method, not two. An interesting quirk of Smalltalk is that
-the arguments can go inside of the method name. There are also completely separate `iftrue:` and
-`iffalse:` methods that take one argument each.
+Is that cool or what? Yes, `ifTrue:iffasle:` is one method, not two. An interesting quirk of Smalltalk is that
+the arguments can go inside of the method name. There are also completely separate `ifTrue:` and
+`ifFalse:` methods that take one argument each.
 
 We can achieve a very similar effect in Python.
 You can't modify builtins, but a method is just a function that takes the instance as its first
@@ -138,7 +138,7 @@ my_if(a > b,
 But these functions are passed by name, so they're not really anonymous, are they?
 The code is also not inside the control "statement" anymore, so it's kind of harder to read.
 
-You could implement `iftrue:` as a decorator instead,
+You could implement `ifTrue:` as a decorator instead,
 ```Python
 >>> iftrue = lambda b: lambda f: f() if b else None
 >>> @iftrue(10 > 5)
@@ -148,6 +148,7 @@ You could implement `iftrue:` as a decorator instead,
 was true
 >>> result
 'greater'
+
 ```
 Notice that a decorator doesn't *have* to return a wrapped function.
 In this case it called its function to return a string instead of wrapping it.
@@ -172,8 +173,9 @@ Drython's `core` module has a `decorator` decorator to simplify this process:
 was true
 >>> result
 'greater'
+
 ```
-But how do you pass in a second function for `iftrue:iffalse:`? Not possible?
+But how do you pass in a second function for `ifTrue:ifFalse:`? Not possible?
 You actually *can* do this with decorators, you just need to decorate *two* functions.
 But decorators only accept one function, right? Just combine them with a class and decorate that.
 You don't even need an instance if you get the functions directly from the class dict:
@@ -188,97 +190,256 @@ You don't even need an instance if you get the functions directly from the class
 >>> @decr_if(10 > 5)
 ... class result:
 ...     def iftrue():  # no self
-...         print("greater")
+...         print("was true")
 ...         return "greater"
 ...     def iffalse():
-...         print("not greater")
+...         print("wasn't true")
 ...         return "not greater"
-greater
+was true
 >>> result
 'greater'
+
 ```
 Decorators are pretty useful.
+
+As an aside, you don't even have to access the function directly from the class dict in Python 3.
+The function doesn't have any args (no `self`), so it doesn't get converted to a method (unlike Python 2)
+so without reassigning `blocks` you can access raw functions via a dot as normal, like
+```Python
+return blocks.iftrue()
+```
+Drython's core module has an `attrs` class that lets you access a dictionary via dot syntax (like in Lua), so you could
+also do this in Python 2 if you instead use the line
+```Python
+blocks = attrs(vars(blocks))
+```
+
 You could easily implement the 3-way if like this.
 But how would you implement a control strucure that takes an arbitrary number of blocks,
-like switch/case with decorators? Not so easy, is it?
+like switch/case, with decorators? Not so easy, right?
 
-We need real inline anonymous functions. Python does have those though, with `lambda`.
+We need real, inline, anonymous functions. Python does have those though, with `lambda`.
 ```Python
 my_if(a > b,
-    ifTrue=lambda: print('greater'),
-    ifFalse=lambda: print('not greater'),
+    iftrue=lambda: print('was true'),
+    iffalse=lambda: print("wasn't true"),
 )
 ```
-Much prettier. Too bad `lambda` can't have multiple expressions, or this might actually work.
-Or can it?
+Much prettier. Too bad `lambda` only gets one line, or this might actually work.
+
+Actually, with Drython, it does work.
 
 What if you had an expression that contained multiple expressions,
 and executed them one-by-one in order?
-You do. It's a tuple literal. Think of the commas as semicolons and you get the idea.
+Wouldn't lambda be a lot more useful?
 
-What if you just want to `return` the value of the last expression,
+You do. It's a tuple. Think of the commas as semicolons and you get the idea.
+
+What if you just want to return the value of the last expression,
 instead of a tuple of all of them?
-Declare a tuple and immediately index it `(...)[-1]`?
-The included `do` function does exactly this, and also doesn't crash if its `args` tuple is empty.
+Declare a tuple and immediately index it. `(...)[-1]`
+Drython's `do` function does exactly this, and also doesn't crash if its `args` tuple is empty.
 
 ```Python
->>> my_if(10 > 5,
-...     ifTrue=lambda: do(
-...         print('greater'),
-...         'greater',
-...     ),
-...     ifFalse=lambda: do(
-...         print('not greater'),
-...         'not greater',
-...     ),
-... )
-greater
+>>> from drython.statement import do, Print
+>>> my_if = lambda self, iftrue=None, iffalse=None: (iftrue if self else iffalse)()
+>>> result = my_if(10 > 5,
+...              iftrue=lambda: do(
+...                  Print('was true'),
+...                  'greater',
+...              ),
+...              iffalse=lambda: do(
+...                  Print("wasn't true"),
+...                  'lesser',
+...              ),
+...          )
+was true
+>>> result
 'greater'
+
 ```
-It's no worse than the decorator version in terms of length, but this version is an expression.
+It's no worse than the decorator version in terms of length, but this version is an *expression*.
 That means you can put the whole thing in a function call or a lambda body and it still works,
-unlike the decorator version, which is made of statements.
+unlike the decorator version, which is made of *statements*.
 
-You could also take an arbitrary number of lambdas using a `*args` parameter to make more complex
-control structures like a switch/case. This is much more difficult with decorators.
+A control structure could also take an arbitrary number of lambdas using a `*args` parameter to make more complex
+things like a switch/case. This is much more difficult with decorators.
 
-Unfortunately, lambdas in Python can't contain statements,
+Unfortunately, lambdas in Python can't contain *statements*,
 so even with `do` they can't work as general code bocks.
 Or can they?
 
-With DRYthon's statement module, they can.
+With Drython's `statement` module, they can.
 
 The statement module contains expression substitutes for every
-Python statement that isn't already an expression.
+Python statement that isn't already an expression, with a few exceptions.
 They work in lambdas.
-They work in `eval()`.
-They're pretty handy in DRYthon's executable data structures,
+They work in `eval`.
+They're pretty handy in Drython's executable data structures,
 which therefore don't need to handle statement code.
 This makes them a lot simpler than AST, and therefore easier to use.
 
 Ready to write that three-way if?
 
-***Congratulations,*** you've just learned new abstractions!
+You've just learned new metaprogramming abstractions.
 You can extend Python's syntax without changing the grammar and write your DSL in that.
 No need to write your own compiler or interpreter, because it's still just Python.
 Ready for the next step?
+
+## The Stack Module ##
+
+`Def`, from Drython's `statck` module, is an alternative way to write anonymous functions.
+It is an executable data structure in the tradition of stack languages like Forth,
+Factor, and Joy.
+
+A `Stack` represents a composition of special
+functions called *stack combinators* and their associated data.
+
+Because stack combinators must accept a stack and return a stack, they are easy to combine into new
+combinators, just by listing them one after another.
+Combinators execute immediately when pushed on a stack.
+Typically they pop some arguments off the stack and push the result on the return stack
+
+Any Python callable (Including the `statement` module's callables!)
+is interpreted as a stack combinator.
+By default that takes one iterable off the stack as arguments, and pushes the result.
+```Python
+>>> from drython.stack import Stack
+>>> Stack([1,2,3],Print)
+1 2 3
+Stack(None,)
+
+```
+Or, if the top element is a mapping, then a default combinator will take the top two elements,
+using the mapping for the keyword arguments.
+```Python
+>>> Stack([1,2,3],dict(sep='::'),Print)
+1::2::3
+Stack(None,)
+
+```
+You can, of course, call a function with no arguments if the iterable on top is empty.
+An empty mapping is likewise harmless, but the iterable is required.
+
+A callable decorated with `@combinator` doesn't use this default conversion and
+must explicitly accept and return a stack object. This gives it access to every item on the stack,
+but it's rare to use more than the top four, and uncommon to even use four.
+
+Drython's `combinator` module has many of these nondefault combinators,
+including all possible stack permutation functions of depth four or less.
+The code that generates them is an interesting example of Python's string metaprogramming. Check it out.
+
+It's easy to see what stack programs are doing by using `Stack.trace`.
+This is just like `Stack.push`, but it prints every step.
+Here's an example with the `dup` and `bi` combinators
+```Python
+>>> from drython.stack import *; from drython.combinator import *; from operator import mul
+>>> Stack(3).trace(dup,bi,mul)  # duplicate, then binary multiply
+Stack(3,) << dup
+Stack(3, 3) << bi
+Stack((3, 3),) << <built-in function mul>
+Stack(9,)
+
+```
+Here, `mul` is an ordinary Python function with the default interpretation.
+
+The `Def` constructor takes a stack program, that is, a sequence of combinators (and any associated data).
+The resulting function (a callable instance of `Def`) uses a stack internally.
+The internal stack initiallay has the args tuple and kwargs dict (in that order), from the function call.
+So a call like `x(1,2,foo=3)` results in `Stack((1,2,),{'foo':3})` initially.
+Then the `Def` call pushes its combinator sequence onto this argument stack, and returns the top element that results.
+
+You can get at the `(1, 2)` arguments using the `pop` combinator (which removes the top element) and the
+very important `Ic` (I-combinator), which dumps an iterable's elements on the stack.
+```Python
+>>> Stack((1,2),{'foo':3}).trace(pop,Ic)
+Stack((1, 2), {'foo': 3}) << pop
+Stack((1, 2),) << Ic
+Stack(1, 2)
+
+```
+A nice thing about stack combinators is that you can copy-paste entire phrases and it mostly just works.
+Only the *top* of the stack has to match up.
+We can combine these two traced programs with `Def` to get a working `square` function.
+```Python
+>>> square = Def(pop,Ic,dup,bi,mul)
+>>> square(4)
+16
+>>> square.trace(4)
+Stack((4,), {}) << pop
+Stack((4,),) << Ic
+Stack(4,) << dup
+Stack(4, 4) << bi
+Stack((4, 4),) << <built-in function mul>
+Stack(16,).peek()
+16
+>>> square(7)
+49
+>>> square  # unlike an ordinary Python function, the repr is readable.
+Def(pop, Ic, dup, bi, <built-in function mul>)
+>>> square[0]  # a Def is a type of tuple
+pop
+>>> square[2:-1]
+(dup, bi)
+
+```
+
+You can create new combinators from phrases of existing combinators (instead of from scratch with `@combinator`)
+by using `@Phrase`
+```Python
+>>> @Phrase(pop,Ic)
+... def pic(): """ for starting a simple Def, ignores kwargs and dumps args on the stack"""
+>>> @Phrase(bi,mul)
+... def mul2(): """ multiples the top two elements and pushes the result. """
+
+```
+Now you can use them in new stack programs
+```Python
+>>> cube = Def(pic,dup,dup,mul2,mul2)
+>>> cube(3)
+27
+>>> cube
+Def(pic, dup, dup, mul2, mul2)
+
+```
+The astute reader may wonder why we've gone back to decorators when we went to so much trouble to make everything an expression.
+It seems like a step backwards.
+Shouldn't we make a way to make anonymous functions from phrases from within a stack program?
+
+The `@Phrase` decorator is just used for phrases with docstrings declared at the top level of a module.
+You actually already have anonymous function capability:
+Compose a list of combinators on the stack. That's it. That's your anonymous function.
+Invoke it with `Ic`.
+If you can manipulate lists of combinators programmatically, *then you can write stack programs programmatically.*
+This is metaprogramming. Code that writes code.
+
+These lists are a kind of quoted program. Some combinators take such programs as arguments.
+This is similar to the way Smalltalk takes code blocks, so control structures (and therefore DSLs)
+can be implemented as combinators in an analogous way.
+See the `ifte` combinator in the `stack` module's companion `combinators` module for a familiar example.
 
 ## s-expressions ##
 
 Tired of writing `lambda ...: let(lambda:do(...,Return()))` when you just needed an anonymous
 function?
+Sure, stack programs are a powerful alternative to lambda, but they can't introduce new variables like lambda can.
 That sure sounds like a boilerplate code problem.
 You need better abstractions again.
 
 Wouldn't it be easier if you could write functions that get their arguments unevaluated?
 Then you wouldn't need to wrap everything in lambdas.
-Lisp can do it with macros. Python can do it too, with DRYthon.
+Lisp can do it with macros. Python can do it too, with Drython.
 
-An s-expression is an abstracted function *call*.
+An s-expression represents a function *call*.
 You create an s-expression instance with a function and its arguments.
 
 ```Python
-S(print, "Hello,", "World!")
+>>> from drython.s_expression import S
+>>> S(Print, "Hello,", "World!")
+S(<built-in function print>,
+  'Hello,',
+  'World!')
+
 ```
 
 But the call doesn't happen until you invoke its `s_eval()` method,
@@ -290,8 +451,9 @@ it is possible to write entire programs as nested s-expressions.
 Think of s-expressions as a simpler kind of abstract syntax trees.
 
 ```Python
->>> S(print, S("Hello,".upper), S("World!".lower)).s_eval({})
+>>> S(Print, S("Hello,".upper), S("World!".lower)).s_eval({})
 HELLO, world!
+
 ```
 
 Note the dictionary in the `s_eval` call.
@@ -299,20 +461,23 @@ s-expressions have their own scope for delayed evaluation of `Symbol`s.
 For a module-level s-expression, you might want to pass in the `globals()`,
 which will make them available as the equivalent symbol.
 ```Python
+>>> from drython.macro import setq
 >>> spam = 7
->>> S(print, S.spam).s_eval(globals())  # S.spam is the same as Symbol('spam')
+>>> S(Print, S.spam).s_eval(globals())  # S.spam is the same as Symbol('spam')
 7
 >>> S(setq, S.spam, 42).s_eval(globals())  # globals() is writable.
 >>> spam
 42
+
 ```
 
 You can also use an s-expression as a kind of lambda. Calling one directly will call `s_eval` with
 the kwargs dict.
 
 ```Python
->>> S(print, S.x, S.y, 3, sep=S.sep)(x=1, y=2, sep=':')
+>>> S(Print, S.x, S.y, 3, sep=S.sep)(x=1, y=2, sep=':')
 1:2:3
+
 ```
 
 If the s-expression's function is a *macro*,
@@ -342,56 +507,4 @@ And they're great for creating DSLs.
 
 The s-expression module has a companion `macros` module which
 includes many useful basic macros to get you started.
-
-## the stack module ##
-
-`Def` is an alternative way to write anonymous functions.
-It is another executable data structure in the tradition of stack languages like Forth,
-Factor, and Joy.
-
-A Stack represents a composition of special
-functions called *stack combinators* and their associated data.
-
-Because stack combinators must accept a stack and return a stack, they are easy to combine into new
-combinators, just by listing them one after another.
-Typically they pop some arguments off the Stack and push the result on the return Stack
-
-Unlike s-expressions which must be s-evaluated, combinators execute immediately when pushed on a
-Stack. However,
-a list containing combinators isn't a Stack, even when the list itself is an element on a Stack.
-
-These lists are a kind of quoted program. Some combinators take such programs as arguments.
-This is similar to the way Smalltalk takes code blocks, so control structures (and therefore DSLs)
-can be implemented as combinators in an analogous way.
-See the `ifte` combinator in the `stack` module's companion `combinators` module for an example.
-
-Stack programs are interoperable with ordinary Python programs.
-
-The `run` combinator can execute any Python function using arguments from the stack.
-
-    Python
-    >>> Stack([1,2,3],dict(sep='::'),print,run)
-    1::2::3
-    Stack(None,)
-
-Including, of course, any statement replacement function from the `statement` module.
-
-The `op` function takes a Python function and returns a combinator.
-
-The `Def` class does the opposite.
-The `Def` constructor is a stack program, that is, a sequence of combinators
-(and any associated data).
-The resulting function (a callable instance of `Def`) takes its arguments as the initial Stack,
-applies the stored Stack program to that, then returns the top element of the Stack.
-
-    Python
-    >>> from operator import mul
-    >>> square = Def(dup, mul)  # duplicate, then multiply
-    >>> square(4)
-    16
-    >>> square(7)
-    49
-    >>> square  # unlike an ordinary Python function, the repr is readable.
-    Def(dup, op(mul))
-
 
