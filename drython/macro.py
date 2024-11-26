@@ -535,7 +535,8 @@ def dot(obj, *names):
 
 
 def _private():
-    _sentinel = object()  # used only for is check
+    # _sentinel = object()  # used only for is check
+    _sentinel = S()  # used only for is check
 
     global thr, thrt
 
@@ -548,6 +549,7 @@ def _private():
         'This sentence is forwards.'
         """
         # TODO: doctest threading
+        # TODO: wrap in S if not already, like Clojure.
         if first is _sentinel:
             return x
         return thr(S(first[0], x, *first.args[1:], **first.kwargs), *rest)

@@ -27,16 +27,17 @@ Typical module import is:
 
 This includes
 `Atom` (thread-locked nonlocal assignment emulation),
+`Box` (like atom, but not thread safe),
 `let` (local assignment emulation and Return() support),
 `do` (for side effects in expressions, especially lambdas),
-plus the 13 keyword statement replacements.
+plus the 13 reserved word statement replacements.
 
 Despite convention for Python function names, the 13 replacements
 Assert, Break, Continue, Elif/Else, For/Else, Import/From, Pass, Print,
 Raise/From, let/Return, Try/Except/Else/Finally, With, and While/Else
-are capitalized to avoid conflicts with the original Python keywords.
+are capitalized to avoid conflicts with the original Python reserved word.
 
-Functions for the keywords `False`, `None`, `True`, `and`, `if`,
+Functions for the reserved words `False`, `None`, `True`, `and`, `if`,
 `in`, `is`, `lambda`, `not`, `or`, and `yield` are not provided because
 they are already expressions. Similarly for most operators.
 
@@ -630,6 +631,17 @@ def Try(thunk, *Except, **ElseFinally):
     return res
 
 
+class Box(object):
+    """
+    A simple class with exactly one (mutable) slot 'e'. Used internally by Atom.
+    """
+    __slots__ = 'e'
+    def __init__(self,e):
+        self.e = e
+    def __repr__(self):
+        return 'Box('+repr(self.e)+')'
+
+
 class Atom(object):
     """
     a locked boxed mutable variable, assignable in expressions.
@@ -638,7 +650,7 @@ class Atom(object):
     >>> spam
     Atom(44)
     >>> from operator import sub
-    >>> spam.set(sub, 2)  # atomic updates with a callback. The element is the first argument.
+    >>> spam.swap(sub, 2)  # atomic updates with a callback. The element is the first argument.
     42
 
     unbox with .e (element) attr
@@ -649,7 +661,7 @@ class Atom(object):
     >>> spam.get()
     42
 
-    >>> spam.set(lambda x: 'eggs')  # the callback can override the current value without using it.
+    >>> spam.reset('eggs')
     'eggs'
     """
 
@@ -659,9 +671,9 @@ class Atom(object):
 
         lock = Lock()
 
-        e = [e]
+        b = Box(e)
 
-        def var_set(f,*args):
+        def var_swap(f,*args):
             """
             Atomically updates Atom's element, and returns the new value.
 
@@ -675,12 +687,23 @@ class Atom(object):
             # Atom is a useful alternative to primitive locks
             # in many cases.
             with lock:
-                e[0] = f(e[0], *args)
-                res = e[0]
+                b.e = f(b.e, *args)
+                res = b.e
             return res
 
-        self.set = var_set
-        self.get = lambda: e[0]  # readonly
+        def var_reset(new):
+            """
+            Atomically sets the value of this atom to new, ignoring the current value.
+            Returns new.
+            """
+            with lock:
+                b.e = new
+                res = b.e
+            return res
+
+        self.swap = var_swap
+        self.reset = var_reset
+        self.get = lambda: b.e  # readonly
 
     @property
     def e(self):
@@ -688,7 +711,7 @@ class Atom(object):
 
     @e.setter
     def e(self, new):
-        raise AttributeError("Use .set() to assign to a Atom, not .e = ...")
+        raise AttributeError("Use .swap() or .reset() to assign to a Atom, not .e = ...")
 
     def __repr__(self):
         return 'Atom(%s)' % repr(self.e)
@@ -706,20 +729,20 @@ def While(predicate, body, label=None, Else=Pass):
     >>> from operator import add
     >>> spam = Atom(4)
     >>> While(spam.get, lambda:
-    ...     Print(spam.set(add,-1)))
+    ...     Print(spam.swap(add,-1)))
     3
     2
     1
     0
     >>> spam = Atom(1)
     >>> While(spam.get, lambda:
-    ...   Print(spam.set(add,-1)),
+    ...   Print(spam.swap(add,-1)),
     ... Else=lambda:
     ...   'done')
     0
     'done'
     >>> While(lambda: True, lambda:
-    ...   Print(spam.set(add,1)) if spam.e < 2 else Break(),
+    ...   Print(spam.swap(add,1)) if spam.e < 2 else Break(),
     ... Else=lambda:
     ...   Print('impossible'))
     1

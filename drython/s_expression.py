@@ -772,7 +772,7 @@ def _private():
     # noinspection PyRedeclaration,PyUnusedLocal
     def gensym(prefix=''):
         return Symbol(
-            '<{0}#{1}>'.format(prefix, str(_gensym_counter.set(add, 1))))
+            '<{0}#{1}>'.format(prefix, str(_gensym_counter.swap(add, 1))))
 
     gensym.__doc__ = __doc__  # keeps the docstring for the repl
 

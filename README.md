@@ -266,13 +266,12 @@ A control structure could also take an arbitrary number of lambdas using a `*arg
 things like a switch/case. This is much more difficult with decorators.
 
 Unfortunately, lambdas in Python can't contain *statements*,
-so even with `do` they can't work as general code bocks.
-Or can they?
+so even with `do` they can't work as general code bocks, right?
 
-With Drython's `statement` module, they can.
+With Drython's `statement` module, they *can*.
 
 The statement module contains expression substitutes for every
-Python statement that isn't already an expression, with a few exceptions.
+Python reserved word that isn't already an expression or doesn't have an expression equivalent.
 They work in lambdas.
 They work in `eval`.
 They're pretty handy in Drython's executable data structures,
@@ -288,7 +287,7 @@ Ready for the next step?
 
 ## The Stack Module ##
 
-`Def`, from Drython's `statck` module, is an alternative way to write anonymous functions.
+`Def`, from Drython's `stack` module, is an alternative way to write anonymous functions.
 It is an executable data structure in the tradition of stack languages like Forth,
 Factor, and Joy.
 
