@@ -15,6 +15,9 @@
 """
 This module exports a set of expression replacement functions.
 
+`In` substitutes for generator expressions (and therefore comprehensions).
+`generator` substitutes for `yield from` and `yield` in cases where it would be incompatible with the statement module.
+
 Unlike statements, expressions already work in lambdas and eval, so why replace them too?
 
 Besides being easier to use with higher-order functions, the stack and s-expression modules work primarily with
@@ -64,6 +67,16 @@ A more advanced macro could include Python's other features like `if` filters an
 But more importantly, since you can metaprogram this, you can add new features in the macro that raw Python lacks,
 like whilst.
 """
+
+import threading
+from functools import wraps
+from drython.statement import do, Raise
+import sys
+
+if sys.version_info[0] == 2:
+    import Queue as Q
+else:
+    import queue as Q
 
 
 def In(target_list, comp_lambda):
@@ -152,3 +165,80 @@ def when(b, x):
     ['ab', 'ac', 'ba', 'bc', 'ca', 'cb']
     """
     return x if b else ()
+
+
+def generator(f):
+    """
+    The first argument is a named yield point creatively named `Yield` here.
+    Because it's named, it can cut though nested generators without `yield from`
+    >>> @generator
+    ... def foo(Yield):
+    ...     Yield(1)
+    ...     def subgen():
+    ...         Yield(2)
+    ...     subgen()
+    ...     subgen()
+    >>> list(foo())
+    [1, 2, 2]
+
+    The generator decorator can also do coroutines like the following.
+    >>> def echo():
+    ...     reply = yield
+    ...     while True:
+    ...         reply = yield reply
+    >>> my_echo = echo()
+    >>> my_echo.send(None)
+    >>> my_echo.send(1)
+    1
+    >>> my_echo.send(2)
+    2
+
+    The @generator version works the same way.
+    >>> @generator
+    ... def g_echo(Yield):
+    ...     reply = Yield()
+    ...     while True:
+    ...         reply = Yield(reply)
+    >>> my_g_echo = g_echo()
+    >>> my_g_echo.send(None)
+    >>> my_g_echo.send(1)
+    1
+    >>> my_g_echo.send(2)
+    2
+
+    Now you can make coroutines out of pure expressions with the help of the statement module.
+    >>> from drython.statement import While,let,Atom
+    >>> x_echo = generator(lambda Yield:
+    ...     let(lambda reply=Atom(Yield()):
+    ...         While(lambda:True, lambda:
+    ...             reply.reset(Yield(reply.e)))))()
+    >>> x_echo.send(None)
+    >>> x_echo.send(1)
+    1
+    >>> x_echo.send(2)
+    2
+    """
+    stop_signal = object()
+    yield_q = Q.Queue(maxsize=1)
+    send_q = Q.Queue(maxsize=1)
+
+    def Yield(arg=None):
+        yield_q.put(arg)
+        res = send_q.get()
+        return res
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        t = threading.Thread(target=lambda: do(
+            f(Yield, *args, **kwargs),
+            yield_q.put(stop_signal)))
+        t.daemon = True
+        t.start()
+        while True:
+            yielded = yield_q.get()
+            if yielded == stop_signal:
+                break
+            sent = (yield yielded)
+            send_q.put(sent)
+
+    return wrapper
