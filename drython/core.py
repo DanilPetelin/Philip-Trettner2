@@ -233,7 +233,7 @@ def efset(*args):
     return frozenset(args)
 
 
-def edict(*args):
+def edict(*args,**kwargs):
     """
     pairs args and makes a dictionary with them
     >>> edict(1, 2)
@@ -243,8 +243,12 @@ def edict(*args):
     >>> edict(1, 2,
     ...       3, 4) == {1: 2, 3: 4}
     True
+
+    kwargs become string keys
+    >>> edict(1,2, c=3) == {1:2, 'c':3}
+    True
     """
-    return dict(partition(args))
+    return dict(chain(partition(args),kwargs.items()))
 
 
 _sentinel = object()
