@@ -1,4 +1,4 @@
-# Copyright 2015 Matthew Egan Odendahl
+# Copyright 2015, 2016 Matthew Egan Odendahl
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -636,10 +636,12 @@ class Box(object):
     A simple class with exactly one (mutable) slot 'e'. Used internally by Atom.
     """
     __slots__ = 'e'
-    def __init__(self,e):
+
+    def __init__(self, e):
         self.e = e
+
     def __repr__(self):
-        return 'Box('+repr(self.e)+')'
+        return 'Box(' + repr(self.e) + ')'
 
 
 class Atom(object):
@@ -666,14 +668,13 @@ class Atom(object):
     """
 
     def __init__(self, e):
-
         from threading import Lock
 
         lock = Lock()
 
         b = Box(e)
 
-        def var_swap(f,*args):
+        def var_swap(f, *args):
             """
             Atomically updates Atom's element, and returns the new value.
 

@@ -1,4 +1,4 @@
-# Copyright 2015 Matthew Egan Odendahl
+# Copyright 2015, 2016 Matthew Egan Odendahl
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -325,7 +325,7 @@ class Def(tuple):
         49
         """
         res = Stack(args, kwargs).trace(*self)
-        Print(repr(res)+'.peek()')
+        Print(repr(res) + '.peek()')
         return res.peek()
 
     def __repr__(self):

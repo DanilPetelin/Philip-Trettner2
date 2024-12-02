@@ -1,4 +1,4 @@
-# Copyright 2015 Matthew Egan Odendahl
+# Copyright 2015, 2016 Matthew Egan Odendahl
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -501,9 +501,7 @@ def decorator(arged_decorator):
 
 
 if sys.version_info[0] >= 3:
-    # exec is a function in Python 3, thus proper format of this line has no space, like this:
-    # exec("class Abstract(metaclass=ABCMeta):pass")
-    exec("class Abstract(metaclass=ABCMeta):pass")
+    exec ("class Abstract(metaclass=ABCMeta):pass")
 else:
     class Abstract(object):
         __metaclass__ = ABCMeta

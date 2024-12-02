@@ -1,4 +1,4 @@
-# Copyright 2015 Matthew Egan Odendahl
+# Copyright 2015, 2016 Matthew Egan Odendahl
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ for _cs in permutations('abc'):
         # abc is nop
         # acb is swap
         continue
-    exec('''
+    exec ('''
 @Combinator
 def {0}(stack):
     """
@@ -99,7 +99,7 @@ del _cs
 for _cs in permutations('abcd'):
     if _cs[0] == 'a':
         continue  # depth < 4; already defined above
-    exec('''
+    exec ('''
 @Combinator
 def {0}(stack):
     """
