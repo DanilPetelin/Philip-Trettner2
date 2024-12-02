@@ -70,7 +70,6 @@ like whilst.
 
 import threading
 from functools import wraps
-from drython.statement import do, Raise
 import sys
 
 if sys.version_info[0] == 2:
@@ -195,27 +194,28 @@ def generator(f):
 
     The @generator version works the same way.
     >>> @generator
-    ... def g_echo(Yield):
+    ... def echo2(Yield):
     ...     reply = Yield()
     ...     while True:
     ...         reply = Yield(reply)
-    >>> my_g_echo = g_echo()
-    >>> my_g_echo.send(None)
-    >>> my_g_echo.send(1)
+    >>> my_echo2 = echo2()
+    >>> my_echo2.send(None)
+    >>> my_echo2.send(1)
     1
-    >>> my_g_echo.send(2)
+    >>> my_echo2.send(2)
     2
 
     Now you can make coroutines out of pure expressions with the help of the statement module.
+    This is the expression-only equivalent of the generator above.
     >>> from drython.statement import While,let,Atom
-    >>> x_echo = generator(lambda Yield:
+    >>> echo3 = generator(lambda Yield:
     ...     let(lambda reply=Atom(Yield()):
     ...         While(lambda:True, lambda:
-    ...             reply.reset(Yield(reply.e)))))()
-    >>> x_echo.send(None)
-    >>> x_echo.send(1)
+    ...             reply.swap(Yield))))()
+    >>> echo3.send(None)
+    >>> echo3.send(1)
     1
-    >>> x_echo.send(2)
+    >>> echo3.send(2)
     2
     """
     stop_signal = object()
@@ -229,7 +229,7 @@ def generator(f):
 
     @wraps(f)
     def wrapper(*args, **kwargs):
-        t = threading.Thread(target=lambda: do(
+        t = threading.Thread(target=lambda: (
             f(Yield, *args, **kwargs),
             yield_q.put(stop_signal)))
         t.daemon = True
