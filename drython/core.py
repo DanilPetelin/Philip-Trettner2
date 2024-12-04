@@ -16,8 +16,9 @@
 Basic utilities for use with the other modules.
 """
 
-# Other modules in this package may require core.
-# To avoid circular dependencies, core.py shall not depend on any other modules in this package.
+# Other modules in this package may require core. To avoid circular
+# dependencies, core.py shall not depend on any other modules in this
+#  package.
 
 
 from __future__ import absolute_import, division, print_function
@@ -34,8 +35,9 @@ if sys.version_info[0] == 2:
 else:
     from itertools import zip_longest
 
-# This is to avoid depending on statement.Print
-# a bug in Jython prevents from __future__ import print_statement from working in doctests.
+# This is to avoid depending on statement.Print a bug in Jython
+# prevents from __future__ import print_statement from working in
+# doctests.
 Print = print
 
 _exclude_from__all__ = set(globals().keys())
@@ -183,7 +185,7 @@ def stars(func):
 
 def unstars(func):
     """
-    Converts a function of one mapping to a function of keyword arguments
+    Converts a function of one mapping to a function of keyword args
     >>> test = lambda mapping: Print(mapping)
     >>> test(dict(a='A'))
     {'a': 'A'}
@@ -233,7 +235,7 @@ def efset(*args):
     return frozenset(args)
 
 
-def edict(*args,**kwargs):
+def edict(*args, **kwargs):
     """
     pairs args and makes a dictionary with them
     >>> edict(1, 2)
@@ -248,7 +250,7 @@ def edict(*args,**kwargs):
     >>> edict(1,2, c=3) == {1:2, 'c':3}
     True
     """
-    return dict(chain(partition(args),kwargs.items()))
+    return dict(chain(partition(args), kwargs.items()))
 
 
 _sentinel = object()
@@ -318,7 +320,8 @@ def apply(func, *args, **stargs):
     >>> apply(Print, 1, 2, star=(3, 4), stars=dict(sep='::'))
     1::2::3::4
     """
-    return func(*args + tuple(stargs.get('star', ())), **stargs.get('stars', Empty))
+    return func(*args + tuple(stargs.get('star', ())),
+                **stargs.get('stars', Empty))
 
 
 def assign_attr(obj, name, val, oper=None):
@@ -411,8 +414,10 @@ class attrs(object):
     """
     Attribute view of a dictionary.
 
-    Provides Lua-like syntactic sugar when the dictionary has string keys that are also valid Python identifiers, which
-    is a common occurrence in Python, for example, calling vars() on an object returns such a dict.
+    Provides Lua-like syntactic sugar when the dictionary has string
+    keys that are also valid Python identifiers, which is a common
+    occurrence in Python, for example, calling vars() on an object
+    returns such a dict.
     >>> spam = {}
     >>> atspam = attrs(spam)
 
@@ -427,7 +432,8 @@ class attrs(object):
     >>> spam
     {'one': 1}
 
-    calling the object returns the underlying dict for direct access to all dict methods and syntax
+    calling the object returns the underlying dict for direct access
+    to all dict methods and syntax
     >>> list(
     ...  atspam().items()
     ... )
@@ -462,18 +468,22 @@ class attrs(object):
         return "attrs(" + repr(self()) + ")"
 
 
-# decorator = (lambda d: lambda *args,**kwargs: lambda f:  d(f,*args,**kwargs))
+# decorator = (lambda d: lambda *args,**kwargs:
+#     lambda f:  d(f,*args,**kwargs))
 def decorator(arged_decorator):
     """Decorator-with-arguments decorator.
 
-    Decorators can't take arguments, but you can work around this via currying, that is, call a decorator factory
-    function with arguments that generates a new decorator function (with the arguments already built in) on the fly.
-    The @ syntax works with these function calls, but it makes defining decorators with arguments difficult,
-    especially when using callable classes. This decorator decorator abstracts and simplifies the process by turning a
-    function of multiple arguments into a decorator factory.
+    Decorators can't take arguments, but you can work around this via
+    currying, that is, call a decorator factory function with
+    arguments that generates a new decorator function (with the
+    arguments already built in) on the fly. The @ syntax works with
+    these function calls, but it makes defining decorators with
+    arguments difficult, especially when using callable classes. This
+    decorator decorator abstracts and simplifies the process by
+    turning a function of multiple arguments into a decorator factory.
 
-    The function this decorates must take a function as its first argument. The remaining arguments will come from
-    the factory call.
+    The function this decorates must take a function as its first
+    argument. The remaining arguments will come from the factory call
     @decorator
     >>> @decorator
     ... def before_after(block,before,after):
@@ -519,4 +529,6 @@ class SEvaluable(Abstract):
         pass
 
 
-__all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]
+__all__ = [e for e in globals().keys()
+           if not e.startswith('_')
+           if e not in _exclude_from__all__]

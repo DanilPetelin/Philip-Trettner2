@@ -101,9 +101,7 @@ def args_kwargs(data):
     try:
         for i in count():
             args.append(data[i])
-    except IndexError:
-        pass
-    except KeyError:
+    except LookupError:
         pass
     if isinstance(data, Mapping):
         kwargs = {k: v for k, v in data.items() if not isinstance(k, int)}

@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
+########################################################################
 """
 This module exports a set of statement replacement functions.
 
@@ -26,41 +25,53 @@ Typical module import is:
     from drython.statement import *
 
 This includes
-`Atom` (thread-locked nonlocal assignment emulation),
-`Box` (like atom, but not thread safe),
+`Atom` (thread-locked updates and nonlocal assignment emulation),
+`Box` (simpler nonlocals for Python 2, but not thread safe),
+`Bind` (sets and deletes items and attrs)
 `let` (local assignment emulation and Return() support),
 `do` (for side effects in expressions, especially lambdas),
+`loop` (optimized tail-call recursion loops)
+`dest` (destructuring bindings)
 plus the 13 reserved word statement replacements.
 
 Despite convention for Python function names, the 13 replacements
-Assert, Break, Continue, Elif/Else, For/Else, Import/From, Pass, Print,
-Raise/From, let/Return, Try/Except/Else/Finally, With, and While/Else
-are capitalized to avoid conflicts with the original Python reserved word.
+`Assert`, `Break`, `Continue`, `Elif/Else`, `For/Else`, `Import/From`,
+`Pass`, `Print`, `Raise/From`, `let/Return`, `Try/Except/Else/Finally`,
+`With`, and `While/Else` are capitalized to avoid conflicts with the
+original Python reserved word.
 
-Functions for the reserved words `False`, `None`, `True`, `and`, `if`,
-`in`, `is`, `lambda`, `not`, `or`, and `yield` are not provided because
-they are already expressions. Similarly for most operators.
-
-Print is provided, since it's a statement in Python 2. This is merely
-an alias for the builtin print function. Without an alias, Python 2
+`Print` is provided since it's a statement in Python 2. This is merely
+an alias for the builtin `print` function. Without an alias, Python 2
 files would be forced to use `from __future__ import print_function`
 even if they already used print statements, or else a long invocation
 like `getattr(__builtin__, 'print')`.
 
-Due to optimizations for Python locals, direct local and nonlocal
-assignment statements cannot be emulated as functions, but Atom can
-substitute for nonlocals in many cases. For the same reason, direct
-local and nonlocal `del` statements are not supported, but `del` is
-partially supported with delitem from drython.core. (delattr() is
-already a builtin)
+Functions for the reserved words `False`, `None`, `True`, `and`, `if`,
+`in`, `is`, `lambda`, `not`, `or`, and `yield` are not provided because
+they are already expressions. Similarly for most operators, but not for
+assignments. The `yield` expressions are not entirely compatible with
+the replacements, but see `@generator` in the expression module.
+
+`Bind` replaces `del` and `=` statements when targeting attrs or items.
+The builtin `globals` function effectively replaces the `global`
+statement. Due to optimizations for Python locals, the changes to the
+builtin `locals()` may not write through to the local scope, unlike
+`globals()`, which does guarantee changes are reflected in the global
+scope. Although direct local and nonlocal `del` and `=` statements
+cannot be delegated to called functions, lambda can introduce new locals
+in its body. The `let` function immediately calls a lambda to make this
+use convenient.
+
+`dest` TODO:
+
+The `nonlocal` statement doesn't exist in Python 2. The workaround is to
+use a mutable container object instead.  `Atom` is a mutable container
+and also has a `.reset()` method to replace `=` when used as a nonlocal
+workaround.  `Atom` can also be used locally, of course.
 
 The augmented assignment statements, += -= *= /= %= &= |= ^= <<= >>= **=
 //=, are partially supported with the operator module combined with
-Atom.set() and assign_attr()/assign_item() from core.
-
-Assignment statements, =, are partially supported with let(), and by
-using Atom.set() or assign_attr()/assign_item(), without the optional
-operator.
+Atom.swap() and assign_attr()/assign_item() from core.
 
 Use the metaclass directly to substitute for `class`, for example
   X = type('X', (A, B), dict(a=1))
@@ -68,7 +79,7 @@ is the same as
   class X(A, B): a = 1
 
 A substitute for `def` is not provided here, but `lambda` is a viable
-alternative now that most statements are available as expressions.
+alternative now that statements are available as expressions.
 Multiple sequential expressions are available in lambda via do.
 Multiple exits are available via let/Return:
 
@@ -85,6 +96,9 @@ See stack.Def and macros.L1 for two alternative `def` substitutes.
 
 from __future__ import absolute_import, division, print_function
 
+from functools import wraps
+from itertools import islice
+from collections import Mapping
 from importlib import import_module
 import sys
 
@@ -122,11 +136,11 @@ def _private():
     class PassType(object):
         """
         A no-operation empty thunk; returns None.
-        Pass can substitute for `pass` where a statement substitution requires
-        a thunk. (A thunk is a 0-arg func.) Pass() also works anywhere `pass`
-        does, because None does, and in some places `pass` does not,
-        like
-        >>> (lambda: Pass())()
+
+        Pass can substitute for `pass` where a statement substitution
+        requires a thunk. (A thunk is a 0-arg func.) Pass() also
+        works anywhere `pass` does, because None does, and in some
+        places `pass` does not, like >>> (lambda: Pass())()
         """
         __slots__ = ()
 
@@ -266,9 +280,11 @@ class Continue(LabeledException):
 # noinspection PyPep8Naming
 def Elif(*thunks, **Else):
     """
-    Cascading if. The args are paired. Pairs are checked in order.
-    If the left evaluates to true, the right is called. If all are false,
-    Else is called.
+    Cascading if.
+
+    The args are paired. Pairs are checked in order. If the left
+    evaluates to true, the right is called. If all are false, Else is
+    called.
     >>> Elif()  # Else defaults to Pass
     >>> Elif(Pass, lambda:1)  # Pass() is None
     >>> Elif(lambda:True, lambda:1)
@@ -294,8 +310,8 @@ def Elif(*thunks, **Else):
     a
     4
 
-    Recall that `a if b else c` is already an expression. These can be nested,
-    but Elif may be easier to use for deep nesting.
+    Recall that `a if b else c` is already an expression. These can
+    be nested, but Elif may be easier to use for deep nesting.
     """
     assert len(thunks) % 2 == 0
     assert set(Else.keys()) <= frozenset(['Else'])
@@ -496,7 +512,7 @@ def Raise(ex=None, From=Ellipsis):
         if From is not Ellipsis:
             if From is not None:
                 raise ex from From
-            elif type(ex.__init__) != type(Exception().__init__):  # class or instance?
+            elif type(ex.__init__) != type(Exception().__init__):
                 ex = ex()
             ex.__context__ = None
         raise ex
@@ -633,7 +649,9 @@ def Try(thunk, *Except, **ElseFinally):
 
 class Box(object):
     """
-    A simple class with exactly one (mutable) slot 'e'. Used internally by Atom.
+    A simple class with exactly one (mutable) slot 'e'.
+
+    Used internally by Atom.
     """
     __slots__ = 'e'
 
@@ -652,7 +670,9 @@ class Atom(object):
     >>> spam
     Atom(44)
     >>> from operator import sub
-    >>> spam.swap(sub, 2)  # atomic updates with a callback. The element is the first argument.
+
+    atomic updates with a callback. The element is the first argument.
+    >>> spam.swap(sub, 2)
     42
 
     unbox with .e (element) attr
@@ -676,7 +696,7 @@ class Atom(object):
 
         def var_swap(f, *args):
             """
-            Atomically updates Atom's element, and returns the new value.
+            Atomically updates the element, and returns the new value.
 
             The return value is set inside the lock, to make it
             consistent with the update.
@@ -694,8 +714,8 @@ class Atom(object):
 
         def var_reset(new):
             """
-            Atomically sets the value of this atom to new, ignoring the current value.
-            Returns new.
+            Atomically sets the value of this atom to new, ignoring
+            the current value. Returns new.
             """
             with lock:
                 b.e = new
@@ -712,7 +732,8 @@ class Atom(object):
 
     @e.setter
     def e(self, new):
-        raise AttributeError("Use .swap() or .reset() to assign to a Atom, not .e = ...")
+        raise AttributeError(
+            "Use .swap() or .reset() to assign to a Atom, not .e = ...")
 
     def __repr__(self):
         return 'Atom(%s)' % repr(self.e)
@@ -803,9 +824,9 @@ def With(guard, body):
     exit
 
 
-    Unlike with, With supports only one guard, but as pointed out in the
-    documentation, a with statement with multiple guards is equivalent to
-    nested withs anyway, so
+    Unlike with, With supports only one guard, but as pointed out in
+    the documentation, a with statement with multiple guards is
+    equivalent to nested withs anyway, so
 
     with A() as a, B() as b:
             suite
@@ -825,7 +846,7 @@ def With(guard, body):
         return body(g)
 
 
-def let(body, args=(), kwargs=Empty, label=None):
+def let(body, bind=Empty, label=None):
     """
     immediately calls body.
     can catch a Return exception and returns its result.
@@ -836,22 +857,93 @@ def let(body, args=(), kwargs=Empty, label=None):
     >>> let(lambda x='*'*7: x+'spam'+x)
     '*******spam*******'
 
-    Default parameters don't support everything assign statements do.
-    Unpack tuples using the args key instead.
-    >>> triple = (1,2,3)
-    >>> let(args=triple, body=lambda a,b,c: Print(c,b,a))
-    3 2 1
+    Default parameters don't support unpacking like assignment
+    statements. Set the argument dictionary with bind. Combine with
+    dest for arbitrary destructuring.
+    >>> quadruple = (1,2,3,4)
+    >>> let(bind=dest(['a',list,'b','c'], quadruple),
+    ...     body=lambda a,b,c: Print(a,b,c))
+    1 [2, 3] 4
 
-    Unpack dicts using the kwargs key.
-    >>> association = {'foo': 2}
-    >>> let(kwargs=association, body=lambda foo: foo)
-    2
+    Combine with attrs to avoid repeating names. This way doesn't
+    need bind=. It does require dot access in the body, but that may
+    be more convenient in expressions, since that give you a target
+    for setattr, delattr, and Bind.
+    >>> from drython.core import attrs
+    >>> let(lambda x=attrs(
+    ...     dest([all,'N','a','b',list,'rest'], quadruple)):
+    ...         Print(x.N,x.rest,x.b,x.a))
+    (1, 2, 3, 4) [3, 4] 2 1
     """
     try:
-        return body(*args, **kwargs)
+        return body(**bind)
     except Return as r:
         r.handle(label)
         return r.result
+
+
+_sentinel = object()
+
+
+class Bind(object):
+    """
+    Convenience assignment expression syntax.
+    Does not work directly on locals.
+
+    >>> spam = lambda:None
+
+    You can Bind to an attr that doesn't even exist yet.
+    >>> Bind(spam).foo(1)  # returns the value, not spam itself
+    1
+    >>> spam.foo
+    1
+
+    An empty Bind deletes it.
+    >>> Bind(spam).foo()
+    >>> spam.foo
+    Traceback (most recent call last):
+        ...
+    AttributeError: 'function' object has no attribute 'foo'
+
+    >>> eggs = {}
+    >>> Bind(eggs)[1]('one')  # Note this returns the map, not the value
+    {1: 'one'}
+    >>> eggs
+    {1: 'one'}
+    >>> Bind(eggs)[1]()
+    {}
+    >>> eggs
+    {}
+
+    Sequences work as well as maps
+    >>> bacon = [0,0,0,0]
+    >>> Bind(bacon)[1](42)  # similarly returns the list
+    [0, 42, 0, 0]
+
+    even slice assignments and deletions work
+    >>> Bind(bacon)[:-1]([1,2,3])
+    [1, 2, 3, 0]
+    >>> Bind(bacon)[1:-1]()
+    [1, 0]
+    >>> bacon
+    [1, 0]
+    """
+
+    def __init__(self, to):
+        self.to = to
+
+    def __getattribute__(self, item):
+        to = object.__getattribute__(self, 'to')
+        return lambda value=_sentinel: (
+            delattr(to, item) if value is _sentinel
+            else do(setattr(to, item, value), value))
+
+    def __getitem__(self, item):
+        to = object.__getattribute__(self, 'to')
+        return lambda value=_sentinel: do(
+            to.__delitem__(item) if value is _sentinel
+            else to.__setitem__(item, value),
+            to)
 
 
 def do(*body):
@@ -865,8 +957,9 @@ def do(*body):
     (1, 2, 3)
 
     do is used to combine several expressions into one by sequencing,
-    for side-effects. Python guarantees sequential evaluation of arguments:
-    https://docs.python.org/3/reference/expressions.html#evaluation-order
+    for side-effects. Python guarantees sequential evaluation of
+    arguments:
+    docs.python.org/3/reference/expressions.html#evaluation-order
     >>> spam = do(Print('side'),Print('effect'),'suppressed',42)
     side
     effect
@@ -876,4 +969,141 @@ def do(*body):
     return body[-1] if body else Empty
 
 
-__all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]
+def loop(f):
+    """
+    Tail-call optimized recursion.
+
+    The loop decorator injects the recursion thunk factory as the
+    first argument, by convention called `recur`. When recur is
+    called its thunk must be returned. The recursion doesn't happen
+    until after the return, hence it doesn't take up stack frames
+    like direct recursion would. To avoid confusion, recur() should
+    be returned immediately.
+
+    In decorator form.
+    >>> @loop
+    ... def my_range(recur, stop, answer=(0,)):
+    ...     if answer[-1] >= stop:
+    ...         return answer
+    ...     return recur(stop, answer + (answer[-1] + 1,))
+    >>> my_range(6)
+    (0, 1, 2, 3, 4, 5, 6)
+
+    The above in expression form. Notice it's simpler than a While
+    expression would be.
+    >>> loop(lambda recur, stop,ans=(0,):
+    ...     ans if ans[-1] >= stop
+    ...     else recur(stop, ans + (ans[-1] + 1,))
+    ... )(6)
+    (0, 1, 2, 3, 4, 5, 6)
+    """
+    again = Box(False)
+
+    def recur(*args, **kwargs):
+        again.e = True
+        return lambda: f(recur, *args, **kwargs)
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        res = f(recur, *args, **kwargs)
+        while again.e:
+            again.e = False
+            res = res()  # when recur is called it must be returned!
+        return res
+
+    return wrapper
+
+
+def dest(targets, values, kwargs=Ellipsis):
+    """
+    Clojure-style iterable and Mapping destructuring. Returns a dict.
+
+    iterable destructuring is similar to Python's unpacking
+    >>> dest(['a','b'],[1,2]) == dict(a=1, b=2)
+    True
+
+    list is like a * unpacking. Only one is allowed per iterable,
+    but it need not be at the end.
+    >>> (dest(['a','b',list,'args','c'],[1,2,3,4,5]) ==
+    ...  dict(a=1, b=2, args=[3,4], c=5))
+    True
+
+    you can also keep the whole thing with all. It must come first.
+    >>> dest([all,'N','a','b'],[1,2]) == dict(a=1, b=2, N=[1,2])
+    True
+
+    you can use both all and list in the same iterable
+    >>> (dest([all,'N','a','b',list,'args'],[1,2,3,4,5]) ==
+    ...  dict(a=1, b=2, args=[3,4,5], N=[1,2,3,4,5]))
+    True
+
+    If the targets is a mapping then it re-keys the values mapping.
+    >>> dest(dict(a='A',b='B'),dict(A=1,B=2)) == dict(a=1,b=2)
+    True
+
+    It works the same on indexes.
+    >>> dest(dict(a=0,b=1),[10,11]) == dict(a=10,b=11)
+    True
+
+    In Mappings, dict is for defaults. (all still works)
+    >>> dest({'a':'A','b':'B','c':'C',dict:dict(a=2,b=3),all:'N'},
+    ...     dict(A=5,C=6)) == dict(a=5,b=3,c=6,N=dict(A=5,C=6))
+    True
+
+    Keep a set of keys as-is with str.
+    >>> (dest({str:{'a','b','c'},'d':'X'},dict(a=1,b=2,c=3,X=42)) ==
+    ...  dict(a=1,b=2,c=3,d=42))
+    True
+    """
+    if kwargs is Ellipsis:
+        kwargs = {}
+    if isinstance(targets, Mapping):
+        defaults = targets.get(dict, Empty)
+        for left, right in targets.items():
+            if isinstance(left, str):
+                try:
+                    kwargs[left] = values[right]
+                except LookupError:
+                    kwargs[left] = defaults[left]
+            elif left is all:
+                kwargs[right] = values
+            elif left is dict:
+                pass
+            elif left is str:
+                for s in right:
+                    kwargs[s] = values[s]
+            else:
+                dest(left, right, kwargs)
+    else:
+        try:
+            ivalues = iter(values)
+            itargets = iter(targets)
+            name = next(itargets)
+            if name is all:
+                kwargs[next(itargets)] = values
+                name = next(itargets)
+            while True:
+                if isinstance(name, str):
+                    kwargs[name] = next(ivalues)
+                elif name is list:
+                    # this would be easy if list was only allowed at
+                    # the end, like Clojure. but Python3's starred
+                    # binding can be in the middle.
+                    name = next(itargets)
+                    targets = tuple(itargets)  # to count remaining
+                    values = list(ivalues)
+                    sublist = values[:len(values) - len(targets)]
+                    itargets = iter(targets)
+                    ivalues = iter(values[len(sublist):])
+                    kwargs[name] = sublist
+                else:
+                    dest(name, next(ivalues), kwargs)
+                name = next(itargets)
+        except StopIteration:
+            pass
+    return kwargs
+
+
+__all__ = [e for e in globals().keys()
+           if not e.startswith('_')
+           if e not in _exclude_from__all__]

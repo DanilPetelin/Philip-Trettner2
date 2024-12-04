@@ -342,7 +342,11 @@ def subspace(stack):
 # TODO: port Joy's recursive combinators? Factor? Golfscript?
 
 
-__all__ = [e for e in globals().keys() if not e.startswith('_') if e not in _exclude_from__all__]
+__all__ = [e for e in globals().keys()
+           if not e.startswith('_')
+           if e not in _exclude_from__all__]
 
-# combinators are callable instances, not functions, so this helps doctest find their docstrings.
-__test__ = {k: globals()[k].__doc__ for k in __all__ if globals()[k].__doc__ is not None}
+# combinators are callable instances, not functions, so this helps
+# doctest find their docstrings.
+__test__ = {k: globals()[k].__doc__ for k in __all__
+            if globals()[k].__doc__ is not None}

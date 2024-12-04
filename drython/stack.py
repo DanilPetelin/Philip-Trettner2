@@ -64,9 +64,9 @@ class Stack(object):
 
     def __init__(self, *args, **rest):
         assert set(rest.keys()) <= efset('rest')
-        # Stack operations are postfix.
-        # Thus the "cons cells" composing the stack are ordered (rest, top);
-        # reversed compared to lisp list convention of (first, rest).
+        # Stack operations are postfix. Thus the "cons cells"
+        # composing the stack are ordered (rest, top); reversed
+        # compared to lisp list convention of (first, rest).
         self.head = rest.get('rest', None)
         for e in args:
             if callable(e):
@@ -232,10 +232,13 @@ class Stack(object):
 
 class Combinator(object):
     """
-    Marks func as a combinator. Combinators act on a Stack, and return a Stack.
+    Marks func as a combinator.
 
-    A list containing combinators is not itself a combinator, but a kind of
-    quoted program. Some combinators consume these quoted programs.
+    Combinators act on a Stack, and return a Stack.
+
+    A list containing combinators is not itself a combinator, but a
+    kind of quoted program. Some combinators consume these quoted
+    programs.
     """
     _combinator_ = None
 
@@ -253,13 +256,15 @@ class Combinator(object):
 
 @decorator
 class Phrase(object):
-    """ Creates a new combinator from a composition of other combinators.
+    """
+    Creates a new combinator from a composition of other combinators.
     >>> from drython.combinator import dup, bi
     >>> from operator import mul
     >>> @Phrase(dup,bi,mul)
     ... def square(): '''multiplies by itself'''
 
-    The function code is the phrase. The def is just for the name and docstring.
+    The function code is the phrase. The def is just for the name and
+    docstring.
     >>> square.__doc__
     'multiplies by itself'
     >>> Stack(3,square)
@@ -282,7 +287,8 @@ class Def(tuple):
     """
     Defines a Python function from stack elements.
 
-    The stack begins with the args tuple and kwargs dict, applies the words, and returns the topmost element.
+    The stack begins with the args tuple and kwargs dict, applies the
+    words, and returns the topmost element.
     >>> from drython.combinator import pop,Ic,dup,bi
     >>> from operator import mul, add
     >>> Def()(1,2,3,foo='bar')
@@ -290,7 +296,8 @@ class Def(tuple):
     >>> Def(pop)(1,2,3,foo='bar')
     (1, 2, 3)
 
-    equivalent to lambda x: x*x, but without using intermediate variables
+    equivalent to lambda x: x*x, but without using intermediate
+    variables
     >>> square = Def(pop,Ic,dup,bi,mul)
     >>> square(7)
     49
