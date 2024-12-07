@@ -507,3 +507,69 @@ And they're great for creating DSLs.
 The s-expression module has a companion `macros` module which
 includes many useful basic macros to get you started.
 
+## The Expression Module ##
+The expression module has a generator expression replacement, and an experimental `yield` replacement.
+
+Unlike statements, expressions already work in lambdas and eval,
+so why replace them too?
+
+Besides being easier to use with higher-order functions, the `stack`
+and `s-expression` modules work primarily with function calls, so these
+substitutes have uses in metaprogramming. In many cases you can use
+expressions directly anyway, or convert a non-call expression to a
+call with a lambda, but sometimes you need to manipulate the code of
+the expression itself, in which case it must be made of calls to
+begin with.
+
+Direct use acts like a constant in s-expressions (like a Lisp reader macro),
+since it's evaluated before even macros can get to it.
+```Python
+>>> from core import identity, entuple
+>>> from s_expression import S
+>>> S(identity,[(x,y) for x in (1,2) for y in 'abc'])()
+[(1, 'a'), (1, 'b'), (1, 'c'), (2, 'a'), (2, 'b'), (2, 'c')]
+
+```
+On the other hand, the `lambda` version is adjustable with arguments at eval time.
+```Python
+>>> S(lambda z:[(x,y) for x in (1,2) for y in z],'abc')()
+[(1, 'a'), (1, 'b'), (1, 'c'), (2, 'a'), (2, 'b'), (2, 'c')]
+
+```
+This is the function call version of the above using `expression.In`
+```Python
+>>> from drython.expression import In
+>>> S(list,
+...   S(In,(1,2),S(L1,S.x,
+...       S(In,'abc',S(L1,S.y,
+...           S(entuple,S(entuple,S.x,S.y)))))))()
+[(1, 'a'), (1, 'b'), (1, 'c'), (2, 'a'), (2, 'b'), (2, 'c')]
+
+```
+Why use the function call version when it's so much harder? Besides
+the new `expression.whilst` feature, the main advantage here is that you can
+simplify it with a macro.
+```Python
+>>> from s_expression import macro
+>>> from macro import L1
+>>> @macro
+... def genx(expr,*specs):
+...     if specs:
+...         return S(In,specs[1],S(L1,specs[0],S(genx,expr,*specs[2:])))
+...     else:
+...         return S(entuple,expr)
+
+```
+Now we've got generator s-expressions with arguments in familiar
+Python order.
+```Python
+>>> S(list,
+...   S(genx, S(entuple, S.x, S.y), S.x, (1, 2), S.y, 'abc'))()
+[(1, 'a'), (1, 'b'), (1, 'c'), (2, 'a'), (2, 'b'), (2, 'c')]
+
+```
+A more advanced macro could include Python's other features like `if`
+filters and unpacking. But more importantly, since you can
+metaprogram this, you can add new features in the macro that raw
+Python lacks, like whilst.
+
