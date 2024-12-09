@@ -525,7 +525,7 @@ Direct use acts like a constant in s-expressions (like a Lisp reader macro),
 since it's evaluated before even macros can get to it.
 ```Python
 >>> from core import identity, entuple
->>> from s_expression import S
+>>> from drython.s_expression import S
 >>> S(identity,[(x,y) for x in (1,2) for y in 'abc'])()
 [(1, 'a'), (1, 'b'), (1, 'c'), (2, 'a'), (2, 'b'), (2, 'c')]
 
@@ -539,6 +539,7 @@ On the other hand, the `lambda` version is adjustable with arguments at eval tim
 This is the function call version of the above using `expression.In`
 ```Python
 >>> from drython.expression import In
+>>> from macro import L1
 >>> S(list,
 ...   S(In,(1,2),S(L1,S.x,
 ...       S(In,'abc',S(L1,S.y,
@@ -550,8 +551,7 @@ Why use the function call version when it's so much harder? Besides
 the new `expression.whilst` feature, the main advantage here is that you can
 simplify it with a macro.
 ```Python
->>> from s_expression import macro
->>> from macro import L1
+>>> from drython.s_expression import macro
 >>> @macro
 ... def genx(expr,*specs):
 ...     if specs:
