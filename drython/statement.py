@@ -105,7 +105,7 @@ import sys
 from drython.core import entuple, efset, partition, Empty
 
 
-class LabeledException(Exception):
+class LabeledBreak(BaseException):
     def handle(self, label=None):
         """ re-raise self if label doesn't match. """
         if self.label is None or self.label == label:
@@ -118,14 +118,14 @@ class LabeledException(Exception):
         raise self
 
 
-class LabeledResultException(LabeledException):
+class LabeledResultBreak(LabeledBreak):
     def __init__(self, result=None, *results, **label):
         assert set(label.keys()) <= efset('label')
         if results:
             self.result = entuple(result, *results)
         else:
             self.result = result
-        LabeledException.__init__(self, label.get('label', None))
+        LabeledBreak.__init__(self, label.get('label', None))
 
 
 _exclude_from__all__ = set(globals().keys())
@@ -184,7 +184,7 @@ def Assert(boolean):
     assert boolean
 
 
-class Break(LabeledResultException):
+class Break(LabeledResultBreak):
     """
     a substitute for the break statement.
 
@@ -192,7 +192,7 @@ class Break(LabeledResultException):
     >>> try:
     ...     Break()
     ...     assert False
-    ... except Exception as ex:
+    ... except BaseException as ex:
     ...     Print(repr(ex))
     Break()
 
@@ -227,7 +227,7 @@ class Break(LabeledResultException):
     """
 
 
-class Continue(LabeledException):
+class Continue(LabeledBreak):
     """
     a substitute for the continue statement.
 
@@ -235,7 +235,7 @@ class Continue(LabeledException):
     >>> try:
     ...     Continue()
     ...     assert False
-    ... except Exception as ex:
+    ... except BaseException as ex:
     ...     Print(repr(ex))
     Continue()
 
@@ -523,7 +523,7 @@ def Raise(ex=None, From=Ellipsis):
     del _doc
 
 
-class Return(LabeledResultException):
+class Return(LabeledResultBreak):
     """
     Aborts an expression early, but keeps a result value.
     Must be wrapped in a let().
