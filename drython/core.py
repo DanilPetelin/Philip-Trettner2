@@ -35,7 +35,7 @@ if sys.version_info[0] == 2:
 else:
     from itertools import zip_longest
 
-# This is to avoid depending on statement.Print a bug in Jython
+# This is to avoid depending on statement.Print(). A bug in Jython
 # prevents from __future__ import print_statement from working in
 # doctests.
 Print = print

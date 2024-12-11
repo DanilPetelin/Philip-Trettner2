@@ -140,7 +140,8 @@ def _private():
         Pass can substitute for `pass` where a statement substitution
         requires a thunk. (A thunk is a 0-arg func.) Pass() also
         works anywhere `pass` does, because None does, and in some
-        places `pass` does not, like >>> (lambda: Pass())()
+        places `pass` does not, like
+        >>> (lambda: Pass())()
         """
         __slots__ = ()
 
@@ -314,7 +315,7 @@ def Elif(*thunks, **Else):
     be nested, but Elif may be easier to use for deep nesting.
     """
     assert len(thunks) % 2 == 0
-    assert set(Else.keys()) <= frozenset(['Else'])
+    assert set(Else.keys()) <= efset('Else')
     for predicate, thunk in zip(*2 * (iter(thunks),)):
         if predicate():
             return thunk()
@@ -625,7 +626,7 @@ def Try(thunk, *Except, **ElseFinally):
 
     to catch any exception, like the final `except:`, use BaseException.
     """
-    assert set(ElseFinally.keys()) <= frozenset(['Else', 'Finally'])
+    assert set(ElseFinally.keys()) <= efset('Else', 'Finally')
     assert len(Except) % 2 == 0
     assert all(issubclass(x, BaseException)
                for x, c in partition(Except))

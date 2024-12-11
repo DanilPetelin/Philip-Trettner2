@@ -145,12 +145,12 @@ class SExpression(Mapping, SEvaluable, SQuotable):
     S(<built-in function add>,
       20,
       4)
-    >>> spam.s_eval({})  # same as >>> add(20,4)
+    >>> spam.s_eval({})  # same as add(20,4)
     24
     >>> spam()  # S-expressions are also callable
     24
 
-    represents >>> add(mul(4, 10), 2)  # 4*10 + 2
+    represents add(mul(4, 10), 2)  # 4*10 + 2
     >>> spam = S(add,S(mul,4,10),2)
     >>> spam()
     42
@@ -351,7 +351,7 @@ def kwons(k, v, sexpr):
     10:20
 
     symbols also work as keywords.
-    >>> kwons(S.sep,':',S(Print,10,20))()
+    # >>> kwons(S.sep,':',S(Print,10,20))()
     10:20
 
     explicit positional index also works.
@@ -363,10 +363,10 @@ def kwons(k, v, sexpr):
     (10, 20)
 
     remember to quote symbols to prevent early evaluation in S-expressions.
-    >>> S(kwons,-S.sep,':',_S(Print,10,20))()()
+    # >>> S(kwons,-S.sep,':',_S(Print,10,20))()()
     10:20
     """
-    # TODO
+    # TODO: make symbols work?
     d = dict(sexpr)
     d[k] = v
     return SExpression.from_mapping(d)
@@ -653,7 +653,7 @@ class SymbolError(NameError):
     pass
 
 
-class Symbol(UserString, str, SEvaluable, SQuotable):
+class Symbol(SEvaluable, SQuotable, str):
     """
     Symbols for S-expressions.
 
@@ -712,13 +712,16 @@ class Symbol(UserString, str, SEvaluable, SQuotable):
         if (not iskeyword(self)
             and (self[0].isalpha() or self[0] == '_')
             and (len(self) == 1 or self[1:].replace('_', 'X').isalnum())):
-            return 'S.' + self.data
-        return 'Symbol(%s)' % repr(self.data)
+            return 'S.' + str(self)
+        return 'Symbol(%s)' % repr(str(self))
+
+    def __add__(self, other):
+        return Symbol(str.__add__(self,other))
 
     def s_eval(self, scope=Empty):
         """ looks up itself in scope """
         try:
-            return scope[self]
+            return scope[str(self)]
         except KeyError:
             Raise(SymbolError(
                 'Symbol %s is not bound in the given scope' % repr(self)

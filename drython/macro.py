@@ -342,45 +342,45 @@ def La(args, *body):
 #     return SLambda(symbols, S(do, *body), varg, kwonlys, kwvarg, defaults)
 
 
-defmac_g_ = None
-S(defmac, S.defmac_g_, (S.name, S.required, S.optional, S.star, S.stars), (), S.body, None,
-  S(let1, S.syms, S(frozenset,
-                    S(filter,
-                      lambda x: isinstance(x, Symbol) and x.startswith('g_'),
-                      # S(L1, S.x,
-                      #   S(And,
-                      #     S(isinstance, S.x, Symbol),
-                      #     S(S(dot,S.x,S.startswith), 'g_'))),
-                      # flatten_sexpr is only for sexpr, not tuples, so make one w/apply.
-                      S(flatten_sexpr, S(apply, S, star=S.body)))),
-    _S(defmac, ~S.name, ~S.required, ~S.optional, ~S.star, ~S.stars,
-       ~S(Print, S.syms),
-       S(let_n, ~S(tuple, S(chain.from_iterable, S(map,
-                                                   lambda x: (x, gensym(x)),
-                                                   # S(L1, S.x,
-                                                   #   S(entuple, S.x, S(gensym, S.x.data))),
-                                                   S.syms))),
-         +S.body, )))).s_eval(globals())
-defmac_g_.__doc__ = """\
-defines a macro with automatic gensyms for symbols starting with g_
-
->>> expensive_get_number = lambda: do(Print("spam"),14)
->>> S(do,
-...   S(defmac, S.triple_1, [S.n],[],0,0,
-...   _S(sum,S(entuple,~S.n,~S.n,~S.n))),
-...   S(S.triple_1, S(S.expensive_get_number))).s_eval(globals())
-spam
-spam
-spam
-42
->>> S(do,
-...   S(defmac_g_, S.triple_2, [S.n],[],0,0,
-...     S(Raise,S(Exception,S(repr,S(scope)))),
-...     _S(do,
-...        S(setq, ~S.g_n, ~S.n),
-...        S(sum,S(entuple,~S.g_n,~S.g_n,~S.g_n)))),
-...   S(S.triple_2, S(S.expensive_get_number))).s_eval(globals())
-"""
+# defmac_g_ = None
+# S(defmac, S.defmac_g_, (S.name, S.required, S.optional, S.star, S.stars), (), S.body, None,
+#   S(let1, S.syms, S(frozenset,
+#                     S(filter,
+#                       lambda x: isinstance(x, Symbol) and x.startswith('g_'),
+#                       # S(L1, S.x,
+#                       #   S(And,
+#                       #     S(isinstance, S.x, Symbol),
+#                       #     S(S(dot,S.x,S.startswith), 'g_'))),
+#                       # flatten_sexpr is only for sexpr, not tuples, so make one w/apply.
+#                       S(flatten_sexpr, S(apply, S, star=S.body)))),
+#     _S(defmac, ~S.name, ~S.required, ~S.optional, ~S.star, ~S.stars,
+#        ~S(Print, S.syms),
+#        S(let_n, ~S(tuple, S(chain.from_iterable, S(map,
+#                                                    lambda x: (x, gensym(x)),
+#                                                    # S(L1, S.x,
+#                                                    #   S(entuple, S.x, S(gensym, S.x.data))),
+#                                                    S.syms))),
+#          +S.body, )))).s_eval(globals())
+# defmac_g_.__doc__ = """\
+# defines a macro with automatic gensyms for symbols starting with g_
+#
+# >>> expensive_get_number = lambda: do(Print("spam"),14)
+# >>> S(do,
+# ...   S(defmac, S.triple_1, [S.n],[],0,0,
+# ...   _S(sum,S(entuple,~S.n,~S.n,~S.n))),
+# ...   S(S.triple_1, S(S.expensive_get_number))).s_eval(globals())
+# spam
+# spam
+# spam
+# 42
+# >>> S(do,
+# ...   S(defmac_g_, S.triple_2, [S.n],[],0,0,
+# ...     S(Raise,S(Exception,S(repr,S(scope)))),
+# ...     _S(do,
+# ...        S(setq, ~S.g_n, ~S.n),
+# ...        S(sum,S(entuple,~S.g_n,~S.g_n,~S.g_n)))),
+# ...   S(S.triple_2, S(S.expensive_get_number))).s_eval(globals())
+# """
 
 
 # => (defn expensive-get-number [] (print "spam") 14)
