@@ -290,9 +290,6 @@ def generator(f):
             return res
 
         def genr():
-            # kills zombie thread when gc'd
-            thread_terminator = Terminator()
-
             def run():
                 try:
                     f(Yield, *args, **kwargs)
@@ -304,7 +301,6 @@ def generator(f):
                     yield_q.put(None)
 
             t = threading.Thread(target=run,name='@generator')
-            t.daemon = True
             t.start()
 
             # takes from yield_q
@@ -322,16 +318,6 @@ def generator(f):
                     send_q.put(be)
                 else:
                     send_q.put(sent)
-
-        class Terminator(object):
-            def __del__(self):
-                genr_object.close()
-                try:
-                    next(genr_object)
-                    raise RuntimeError(
-                        "@generator ignored GeneratorExit")
-                except StopIteration:
-                    pass
 
         genr_object = genr()
         return genr_object
