@@ -106,7 +106,7 @@ def In(target_list, comp_lambda):
     monad in functional languages.
 
     The lexical scoping rules for lambda require the variable term to
-    be last, unlike Python's comprehensions which put that first. To
+    be last--unlike Python's comprehensions which put that first. To
     enable nesting of In, the comp_lambda must always return an
     iterable, even for the innermost In.
 
@@ -116,12 +116,12 @@ def In(target_list, comp_lambda):
     >>> [c+d for c in 'abc' for d in 'xyz']  # list comprehension
     ['ax', 'ay', 'az', 'bx', 'by', 'bz', 'cx', 'cy', 'cz']
 
-    generator expression acting as list comprehension
+    generator expression acting as the above list comprehension
     >>> list(c+d for c in 'abc' for d in 'xyz')
     ['ax', 'ay', 'az', 'bx', 'by', 'bz', 'cx', 'cy', 'cz']
 
-    Two In functions acting as a generator expression acting as a
-    list comprehension
+    Two `In` functions acting as the above generator expression
+    acting as the list comprehension above that.
     >>> list(In('abc', lambda c:
     ...          In('xyz', lambda d:
     ...              (c+d,)  # comp_lambda ALWAYS returns an iterable
@@ -139,14 +139,14 @@ def In(target_list, comp_lambda):
     ...  dict((k,v) for k,v in [('one',1)]))
     True
 
-    The dict translation is a bit trickier. Note the tuple-in-tuple (
-    (k,v),) and star(), similar to statement.For()
+    The dict translation is a bit trickier. Note the tuple-in-tuple
+    ((k,v),) and star(), similar to statement.For()
     >>> from drython.core import star
     >>> dict(In([('one',1)], star(lambda k, v: ((k,v),) )))
     {'one': 1}
     """
     # The double for/yield is a flatten. I would have used
-    # return itertools.chain.from_iterable(map(comp_lambda, target_list))
+    # return itertools.chain.from_iterable(map(comp_lambda,target_list))
     # but whilst raises StopIteration, and chain can't handle it.
     for target in target_list:
         for x in comp_lambda(target):
@@ -301,6 +301,7 @@ def generator(f):
                     yield_q.put(None)
 
             t = threading.Thread(target=run,name='@generator')
+            t.daemon = True
             t.start()
 
             # takes from yield_q
@@ -319,7 +320,6 @@ def generator(f):
                 else:
                     send_q.put(sent)
 
-        genr_object = genr()
-        return genr_object
+        return genr()
 
     return wrapper
