@@ -272,25 +272,68 @@ def generator(f):
     >>> echo4.send(2)
     2
     """
+    # Just for id. This can be shared between instances.
     stop_signal = object()
-    yield_q = Q.Queue(maxsize=1)
-    send_q = Q.Queue(maxsize=1)
-
-    def Yield(arg=None):
-        yield_q.put(arg)
-        return send_q.get()
-
     @wraps(f)
     def wrapper(*args, **kwargs):
-        t = threading.Thread(target=lambda: (
-            f(Yield, *args, **kwargs),
-            yield_q.put(stop_signal)))
-        t.daemon = True
-        t.start()
-        while True:
-            yielded = yield_q.get()
-            if yielded == stop_signal:
-                break
-            send_q.put((yield yielded))
+        yield_q = Q.Queue(maxsize=1)
+        send_q = Q.Queue(maxsize=1)
+
+        # takes from send_q
+        def Yield(arg=None):
+            yield_q.put(arg)
+            res = send_q.get()
+            if res is stop_signal:
+                res = send_q.get()
+                if res:
+                    raise res
+            return res
+
+        def genr():
+            # kills zombie thread when gc'd
+            thread_terminator = Terminator()
+
+            def run():
+                try:
+                    f(Yield, *args, **kwargs)
+                except BaseException as be:
+                    yield_q.put(stop_signal)
+                    yield_q.put(be)
+                else:
+                    yield_q.put(stop_signal)
+                    yield_q.put(None)
+
+            t = threading.Thread(target=run,name='@generator')
+            t.daemon = True
+            t.start()
+
+            # takes from yield_q
+            while True:
+                yielded = yield_q.get()
+                if yielded is stop_signal:
+                    ex = yield_q.get()
+                    if ex:
+                        raise ex
+                    break
+                try:
+                    sent = (yield yielded)
+                except BaseException as be:
+                    send_q.put(stop_signal)
+                    send_q.put(be)
+                else:
+                    send_q.put(sent)
+
+        class Terminator(object):
+            def __del__(self):
+                genr_object.close()
+                try:
+                    next(genr_object)
+                    raise RuntimeError(
+                        "@generator ignored GeneratorExit")
+                except StopIteration:
+                    pass
+
+        genr_object = genr()
+        return genr_object
 
     return wrapper
