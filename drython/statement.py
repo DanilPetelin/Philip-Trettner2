@@ -62,7 +62,9 @@ cannot be delegated to called functions, lambda can introduce new locals
 in its body. The `let` function immediately calls a lambda to make this
 use convenient.
 
-`dest` TODO:
+`dest` substitutes for starred assignments, in combination with a
+lambda introduction or Bind. `dest` is more powerful than Python3's
+nested iterable destructuring because it also works on mappings.
 
 The `nonlocal` statement doesn't exist in Python 2. The workaround is to
 use a mutable container object instead.  `Atom` is a mutable container
@@ -1015,7 +1017,7 @@ def loop(f):
     return wrapper
 
 
-def dest(targets, values, kwargs=Ellipsis):
+def dest(targets, values, bindings=Ellipsis):
     """
     Clojure-style iterable and Mapping destructuring. Returns a dict.
 
@@ -1055,38 +1057,41 @@ def dest(targets, values, kwargs=Ellipsis):
     >>> (dest({str:{'a','b','c'},'d':'X'},dict(a=1,b=2,c=3,X=42)) ==
     ...  dict(a=1,b=2,c=3,d=42))
     True
+
+    The structures can nest. `dest` will recursively destructure them.
+    >>> dest([all,'out',[all,'in','a','b'],
+    ...      {str:{'c','d'},e:('f','g')}],
+    ...      ['AB',dict(c='C',d='D',e='EF')])
     """
-    if kwargs is Ellipsis:
-        kwargs = {}
+    if bindings is Ellipsis:
+        bindings = {}
     if isinstance(targets, Mapping):
         defaults = targets.get(dict, Empty)
         for left, right in targets.items():
             if isinstance(left, str):
                 try:
-                    kwargs[left] = values[right]
+                    bindings[left] = values[right]
                 except LookupError:
-                    kwargs[left] = defaults[left]
+                    bindings[left] = defaults[left]
             elif left is all:
-                kwargs[right] = values
+                bindings[right] = values
             elif left is dict:
                 pass
             elif left is str:
                 for s in right:
-                    kwargs[s] = values[s]
+                    bindings[s] = values[s]
             else:
-                dest(left, right, kwargs)
+                dest(left, right, bindings)
     else:
         try:
             ivalues = iter(values)
             itargets = iter(targets)
             name = next(itargets)
             if name is all:
-                kwargs[next(itargets)] = values
+                bindings[next(itargets)] = values
                 name = next(itargets)
             while True:
-                if isinstance(name, str):
-                    kwargs[name] = next(ivalues)
-                elif name is list:
+                if name is list:
                     # this would be easy if list was only allowed at
                     # the end, like Clojure. but Python3's starred
                     # binding can be in the middle.
@@ -1096,13 +1101,22 @@ def dest(targets, values, kwargs=Ellipsis):
                     sublist = values[:len(values) - len(targets)]
                     itargets = iter(targets)
                     ivalues = iter(values[len(sublist):])
-                    kwargs[name] = sublist
+                    bindings[name] = sublist
                 else:
-                    dest(name, next(ivalues), kwargs)
+                    try:
+                        val = next(ivalues)
+                    except StopIteration:
+                        raise ValueError(
+                            "not enough values to unpack for target %s" %
+                            repr(name))
+                    if isinstance(name, str):
+                        bindings[name] = val
+                    else:
+                        dest(name, val, bindings)
                 name = next(itargets)
         except StopIteration:
             pass
-    return kwargs
+    return bindings
 
 
 __all__ = [e for e in globals().keys()
