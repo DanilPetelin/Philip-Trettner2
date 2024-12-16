@@ -91,8 +91,11 @@ Python lacks, like whilst.
 """
 
 import threading
+import weakref
 from functools import wraps
 import sys
+
+from drython.statement import Atom
 
 if sys.version_info[0] == 2:
     import Queue as Q
@@ -273,53 +276,60 @@ def generator(f):
     2
     """
     # Just for id. This can be shared between instances.
-    stop_signal = object()
+    raise_signal = object()
     @wraps(f)
     def wrapper(*args, **kwargs):
-        yield_q = Q.Queue(maxsize=1)
-        send_q = Q.Queue(maxsize=1)
+        yield_q = Q.Queue(maxsize=2)
+        send_q = Q.Queue(maxsize=2)
 
         # takes from send_q
         def Yield(arg=None):
             yield_q.put(arg)
             res = send_q.get()
-            if res is stop_signal:
-                res = send_q.get()
-                if res:
-                    raise res
+            if res is raise_signal:
+                raise send_q.get()
             return res
 
-        def genr():
-            def run():
-                try:
-                    f(Yield, *args, **kwargs)
-                except BaseException as be:
-                    yield_q.put(stop_signal)
-                    yield_q.put(be)
-                else:
-                    yield_q.put(stop_signal)
-                    yield_q.put(None)
+        def run():
+            try:
+                f(Yield, *args, **kwargs)
+                raise StopIteration
+            except BaseException as be:
+                yield_q.put_nowait(raise_signal)
+                yield_q.put_nowait(be)
 
-            t = threading.Thread(target=run,name='@generator')
-            t.daemon = True
+
+        t = threading.Thread(target=run,name='@generator')
+        t.daemon = True
+        _terminator = Atom(None)
+
+        def genr():
+            # kills zombie thread when this is gc'd
+            thread_terminator = _terminator
+
             t.start()
 
             # takes from yield_q
             while True:
                 yielded = yield_q.get()
-                if yielded is stop_signal:
-                    ex = yield_q.get()
-                    if ex:
-                        raise ex
-                    break
+                if yielded is raise_signal:
+                    raise yield_q.get()
                 try:
                     sent = (yield yielded)
                 except BaseException as be:
-                    send_q.put(stop_signal)
+                    send_q.put(raise_signal)
                     send_q.put(be)
                 else:
                     send_q.put(sent)
 
-        return genr()
+        the_generator = genr()
+
+        def terminate(ref):
+            send_q.put_nowait(raise_signal)
+            send_q.put_nowait(GeneratorExit)
+        _terminator.reset(weakref.ref(the_generator, terminate))
+
+        return the_generator
 
     return wrapper
+
