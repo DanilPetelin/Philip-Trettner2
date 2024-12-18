@@ -456,13 +456,19 @@ class attrs(object):
         return object.__getattribute__(self, 'dictionary')
 
     def __getattribute__(self, attr):
-        return self()[attr]
+        try:
+            return self()[attr]
+        except KeyError as ke:
+            raise AttributeError(*ke.args)
 
     def __setattr__(self, attr, val):
         self()[attr] = val
 
     def __delattr__(self, attr):
-        del self()[attr]
+        try:
+            del self()[attr]
+        except KeyError as ke:
+            raise AttributeError(*ke.args)
 
     def __repr__(self):
         return "attrs(" + repr(self()) + ")"
