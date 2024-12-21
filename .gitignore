@@ -61,3 +61,6 @@ target/
 .idea/workspace.xml
 .idea/tasks.xml
 .idea/
+
+.pydevproject
+.project
